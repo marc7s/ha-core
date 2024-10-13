@@ -1433,6 +1433,104 @@ async def async_api_toggle_off(
     return response
 
 
+class SetRangeHandlers:
+    """Handlers for SetRangeValue directives."""
+
+    @staticmethod
+    def cover_position(data: dict[str, Any], range_value: int, supported: Any) -> str:
+        """Set the cover position."""
+        range_value = int(range_value)
+        if supported & cover.CoverEntityFeature.CLOSE and range_value == 0:
+            return cover.SERVICE_CLOSE_COVER
+
+        if supported & cover.CoverEntityFeature.OPEN and range_value == 100:
+            return cover.SERVICE_OPEN_COVER
+
+        data[cover.ATTR_POSITION] = range_value
+        return cover.SERVICE_SET_COVER_POSITION
+
+    @staticmethod
+    def cover_tilt(data: dict[str, Any], range_value: int, supported: Any) -> str:
+        """Set the cover tilt."""
+        range_value = int(range_value)
+        if supported & cover.CoverEntityFeature.CLOSE_TILT and range_value == 0:
+            return cover.SERVICE_CLOSE_COVER_TILT
+
+        if supported & cover.CoverEntityFeature.OPEN_TILT and range_value == 100:
+            return cover.SERVICE_OPEN_COVER_TILT
+
+        data[cover.ATTR_TILT_POSITION] = range_value
+        return cover.SERVICE_SET_COVER_TILT_POSITION
+
+    @staticmethod
+    def fan_speed(data: dict[str, Any], range_value: int, supported: Any) -> str:
+        """Set the fan speed."""
+        range_value = int(range_value)
+        if range_value == 0:
+            return fan.SERVICE_TURN_OFF
+        if supported & fan.FanEntityFeature.SET_SPEED:
+            data[fan.ATTR_PERCENTAGE] = range_value
+            return fan.SERVICE_SET_PERCENTAGE
+
+        return fan.SERVICE_TURN_ON
+
+    @staticmethod
+    def humidifier_target_humidity(data: dict[str, Any], range_value: int) -> str:
+        """Set the humidifier target humidity."""
+        range_value = int(range_value)
+        data[humidifier.ATTR_HUMIDITY] = range_value
+        return humidifier.SERVICE_SET_HUMIDITY
+
+    @staticmethod
+    def input_number_value(
+        data: dict[str, Any], range_value: float, entity: ha.State
+    ) -> str:
+        """Set the input number value."""
+        range_value = float(range_value)
+        min_value = float(entity.attributes[input_number.ATTR_MIN])
+        max_value = float(entity.attributes[input_number.ATTR_MAX])
+        data[input_number.ATTR_VALUE] = min(max_value, max(min_value, range_value))
+        return input_number.SERVICE_SET_VALUE
+
+    @staticmethod
+    def number_value(data: dict[str, Any], range_value: float, entity: ha.State) -> str:
+        """Set the number value."""
+        range_value = float(range_value)
+        min_value = float(entity.attributes[number.ATTR_MIN])
+        max_value = float(entity.attributes[number.ATTR_MAX])
+        data[number.ATTR_VALUE] = min(max_value, max(min_value, range_value))
+        return number.SERVICE_SET_VALUE
+
+    @staticmethod
+    def vacuum_fan_speed(
+        data: dict[str, Any], range_value: int, entity: ha.State
+    ) -> str:
+        """Set the vacuum fan speed."""
+        speed_list = entity.attributes[vacuum.ATTR_FAN_SPEED_LIST]
+        speed = next(
+            (v for i, v in enumerate(speed_list) if i == int(range_value)), None
+        )
+
+        if not speed:
+            msg = "Entity does not support value"
+            raise AlexaInvalidValueError(msg)
+
+        data[vacuum.ATTR_FAN_SPEED] = speed
+        return vacuum.SERVICE_SET_FAN_SPEED
+
+    @staticmethod
+    def valve_position(data: dict[str, Any], range_value: int, supported: Any) -> str:
+        """Set the valve position."""
+        range_value = int(range_value)
+        if supported & valve.ValveEntityFeature.CLOSE and range_value == 0:
+            return valve.SERVICE_CLOSE_VALVE
+        if supported & valve.ValveEntityFeature.OPEN and range_value == 100:
+            return valve.SERVICE_OPEN_VALVE
+
+        data[valve.ATTR_POSITION] = range_value
+        return valve.SERVICE_SET_VALVE_POSITION
+
+
 @HANDLERS.register(("Alexa.RangeController", "SetRangeValue"))
 async def async_api_set_range(
     hass: ha.HomeAssistant,
@@ -1451,83 +1549,35 @@ async def async_api_set_range(
 
     # Cover Position
     if instance == f"{cover.DOMAIN}.{cover.ATTR_POSITION}":
-        range_value = int(range_value)
-        if supported & cover.CoverEntityFeature.CLOSE and range_value == 0:
-            service = cover.SERVICE_CLOSE_COVER
-        elif supported & cover.CoverEntityFeature.OPEN and range_value == 100:
-            service = cover.SERVICE_OPEN_COVER
-        else:
-            service = cover.SERVICE_SET_COVER_POSITION
-            data[cover.ATTR_POSITION] = range_value
+        service = SetRangeHandlers.cover_position(data, range_value, supported)
 
     # Cover Tilt
     elif instance == f"{cover.DOMAIN}.tilt":
-        range_value = int(range_value)
-        if supported & cover.CoverEntityFeature.CLOSE_TILT and range_value == 0:
-            service = cover.SERVICE_CLOSE_COVER_TILT
-        elif supported & cover.CoverEntityFeature.OPEN_TILT and range_value == 100:
-            service = cover.SERVICE_OPEN_COVER_TILT
-        else:
-            service = cover.SERVICE_SET_COVER_TILT_POSITION
-            data[cover.ATTR_TILT_POSITION] = range_value
+        service = SetRangeHandlers.cover_tilt(data, range_value, supported)
 
     # Fan Speed
     elif instance == f"{fan.DOMAIN}.{fan.ATTR_PERCENTAGE}":
-        range_value = int(range_value)
-        if range_value == 0:
-            service = fan.SERVICE_TURN_OFF
-        elif supported & fan.FanEntityFeature.SET_SPEED:
-            service = fan.SERVICE_SET_PERCENTAGE
-            data[fan.ATTR_PERCENTAGE] = range_value
-        else:
-            service = fan.SERVICE_TURN_ON
+        service = SetRangeHandlers.fan_speed(data, range_value, supported)
 
     # Humidifier target humidity
     elif instance == f"{humidifier.DOMAIN}.{humidifier.ATTR_HUMIDITY}":
-        range_value = int(range_value)
-        service = humidifier.SERVICE_SET_HUMIDITY
-        data[humidifier.ATTR_HUMIDITY] = range_value
+        service = SetRangeHandlers.humidifier_target_humidity(data, range_value)
 
     # Input Number Value
     elif instance == f"{input_number.DOMAIN}.{input_number.ATTR_VALUE}":
-        range_value = float(range_value)
-        service = input_number.SERVICE_SET_VALUE
-        min_value = float(entity.attributes[input_number.ATTR_MIN])
-        max_value = float(entity.attributes[input_number.ATTR_MAX])
-        data[input_number.ATTR_VALUE] = min(max_value, max(min_value, range_value))
+        service = SetRangeHandlers.input_number_value(data, range_value, entity)
 
     # Input Number Value
     elif instance == f"{number.DOMAIN}.{number.ATTR_VALUE}":
-        range_value = float(range_value)
-        service = number.SERVICE_SET_VALUE
-        min_value = float(entity.attributes[number.ATTR_MIN])
-        max_value = float(entity.attributes[number.ATTR_MAX])
-        data[number.ATTR_VALUE] = min(max_value, max(min_value, range_value))
+        service = SetRangeHandlers.number_value(data, range_value, entity)
 
     # Vacuum Fan Speed
     elif instance == f"{vacuum.DOMAIN}.{vacuum.ATTR_FAN_SPEED}":
-        service = vacuum.SERVICE_SET_FAN_SPEED
-        speed_list = entity.attributes[vacuum.ATTR_FAN_SPEED_LIST]
-        speed = next(
-            (v for i, v in enumerate(speed_list) if i == int(range_value)), None
-        )
-
-        if not speed:
-            msg = "Entity does not support value"
-            raise AlexaInvalidValueError(msg)
-
-        data[vacuum.ATTR_FAN_SPEED] = speed
+        service = SetRangeHandlers.vacuum_fan_speed(data, range_value, entity)
 
     # Valve Position
     elif instance == f"{valve.DOMAIN}.{valve.ATTR_POSITION}":
-        range_value = int(range_value)
-        if supported & valve.ValveEntityFeature.CLOSE and range_value == 0:
-            service = valve.SERVICE_CLOSE_VALVE
-        elif supported & valve.ValveEntityFeature.OPEN and range_value == 100:
-            service = valve.SERVICE_OPEN_VALVE
-        else:
-            service = valve.SERVICE_SET_VALVE_POSITION
-            data[valve.ATTR_POSITION] = range_value
+        service = SetRangeHandlers.valve_position(data, range_value, supported)
 
     else:
         raise AlexaInvalidDirectiveError(DIRECTIVE_NOT_SUPPORTED)
