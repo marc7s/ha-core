@@ -23,7 +23,10 @@ from homeassistant.core import (
     callback,
 )
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.significant_change import create_checker
+from homeassistant.helpers.significant_change import (
+    SignificantlyChangedChecker,
+    create_checker,
+)
 import homeassistant.util.dt as dt_util
 from homeassistant.util.json import JsonObjectType, json_loads_object
 
@@ -246,8 +249,8 @@ class AlexaResponse:
         return self._response
 
 
-class ProactiveCallbacks:
-    """Callbacks for proactive mode."""
+class ProactiveHelpers:
+    """Helpers for proactive mode."""
 
     @staticmethod
     @callback
@@ -287,24 +290,30 @@ class ProactiveCallbacks:
 
         return True
 
+    @staticmethod
+    def get_entity_report_mode(alexa_changed_entity: AlexaEntity) -> tuple[bool, bool]:
+        """Determine how the entity should be reported on."""
+        should_report = False
+        should_doorbell = False
 
-async def async_enable_proactive_mode(
-    hass: HomeAssistant, smart_home_config: AbstractConfig
-) -> CALLBACK_TYPE | None:
-    """Enable the proactive mode.
+        for interface in alexa_changed_entity.interfaces():
+            if interface.properties_proactively_reported():
+                should_report = True
 
-    Proactive mode makes this component report state changes to Alexa.
-    """
-    # Validate we can get access token.
-    await smart_home_config.async_get_access_token()
+            if interface.name() == "Alexa.DoorbellEventSource":
+                should_doorbell = True
+                break
 
-    checker = await create_checker(
-        hass, DOMAIN, ProactiveCallbacks.extra_significant_check
-    )
+        return should_report, should_doorbell
 
-    async def _async_entity_state_listener(
+    @staticmethod
+    async def async_entity_state_listener(
+        hass: HomeAssistant,
+        smart_home_config: AbstractConfig,
+        checker: SignificantlyChangedChecker,
         event_: Event[EventStateChangedData],
     ) -> None:
+        """Handle state changed event."""
         data = event_.data
         new_state = data["new_state"]
         if TYPE_CHECKING:
@@ -314,16 +323,9 @@ async def async_enable_proactive_mode(
             hass, smart_home_config, new_state
         )
         # Determine how entity should be reported on
-        should_report = False
-        should_doorbell = False
-
-        for interface in alexa_changed_entity.interfaces():
-            if not should_report and interface.properties_proactively_reported():
-                should_report = True
-
-            if interface.name() == "Alexa.DoorbellEventSource":
-                should_doorbell = True
-                break
+        should_report, should_doorbell = ProactiveHelpers.get_entity_report_mode(
+            alexa_changed_entity
+        )
 
         if not should_report and not should_doorbell:
             return
@@ -351,10 +353,27 @@ async def async_enable_proactive_mode(
             hass, smart_home_config, alexa_changed_entity, alexa_properties
         )
 
+
+async def async_enable_proactive_mode(
+    hass: HomeAssistant, smart_home_config: AbstractConfig
+) -> CALLBACK_TYPE | None:
+    """Enable the proactive mode.
+
+    Proactive mode makes this component report state changes to Alexa.
+    """
+    # Validate we can get access token.
+    await smart_home_config.async_get_access_token()
+
+    checker = await create_checker(
+        hass, DOMAIN, ProactiveHelpers.extra_significant_check
+    )
+
     return hass.bus.async_listen(
         EVENT_STATE_CHANGED,
-        _async_entity_state_listener,
-        event_filter=lambda event_filter: ProactiveCallbacks.async_entity_state_filter(
+        lambda event: ProactiveHelpers.async_entity_state_listener(
+            hass, smart_home_config, checker, event
+        ),
+        event_filter=lambda event_filter: ProactiveHelpers.async_entity_state_filter(
             hass, smart_home_config, event_filter
         ),
     )
