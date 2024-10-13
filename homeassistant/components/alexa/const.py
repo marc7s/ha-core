@@ -225,3 +225,4 @@ class Handlers:
     """Handler names for the Alexa API."""
 
     thermostat_controller = "Alexa.ThermostatController"
+    security_panel_controller = "Alexa.SecurityPanelController"
