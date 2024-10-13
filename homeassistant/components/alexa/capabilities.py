@@ -1525,6 +1525,42 @@ class AlexaModeController(AlexaCapability):
             )
         return self._resource.serialize_capability_resources()
 
+    def get_water_heater_operation_modes(self) -> dict[str, list[dict[str, Any]]]:
+        """Return water heater operation modes."""
+        self._resource = AlexaModeResource([AlexaGlobalCatalog.SETTING_MODE], False)
+        operation_modes = (
+            self.entity.attributes.get(water_heater.ATTR_OPERATION_LIST) or []
+        )
+        for operation_mode in operation_modes:
+            self._resource.add_mode(
+                f"{water_heater.ATTR_OPERATION_MODE}.{operation_mode}",
+                [operation_mode],
+            )
+        # Devices with a single mode completely break Alexa discovery,
+        # add a fake preset (see issue #53832).
+        if len(operation_modes) == 1:
+            self._resource.add_mode(
+                f"{water_heater.ATTR_OPERATION_MODE}.{PRESET_MODE_NA}",
+                [PRESET_MODE_NA],
+            )
+        return self._resource.serialize_capability_resources()
+
+    def get_remote_resource(self) -> dict[str, list[dict[str, Any]]]:
+        """Return remote resource."""
+        # Use the mode controller for a remote because the input controller
+        # only allows a preset of names as an input.
+        self._resource = AlexaModeResource([AlexaGlobalCatalog.SETTING_MODE], False)
+        activities = self.entity.attributes.get(remote.ATTR_ACTIVITY_LIST) or []
+        for activity in activities:
+            self._resource.add_mode(f"{remote.ATTR_ACTIVITY}.{activity}", [activity])
+        # Remotes with a single activity completely break Alexa discovery, add a
+        # fake activity to the mode controller (see issue #53832).
+        if len(activities) == 1:
+            self._resource.add_mode(
+                f"{remote.ATTR_ACTIVITY}.{PRESET_MODE_NA}", [PRESET_MODE_NA]
+            )
+        return self._resource.serialize_capability_resources()
+
     def capability_resources(self) -> dict[str, list[dict[str, Any]]]:
         """Return capabilityResources object."""
 
@@ -1551,41 +1587,11 @@ class AlexaModeController(AlexaCapability):
 
         # Water heater operation modes
         if self.instance == f"{water_heater.DOMAIN}.{water_heater.ATTR_OPERATION_MODE}":
-            self._resource = AlexaModeResource([AlexaGlobalCatalog.SETTING_MODE], False)
-            operation_modes = (
-                self.entity.attributes.get(water_heater.ATTR_OPERATION_LIST) or []
-            )
-            for operation_mode in operation_modes:
-                self._resource.add_mode(
-                    f"{water_heater.ATTR_OPERATION_MODE}.{operation_mode}",
-                    [operation_mode],
-                )
-            # Devices with a single mode completely break Alexa discovery,
-            # add a fake preset (see issue #53832).
-            if len(operation_modes) == 1:
-                self._resource.add_mode(
-                    f"{water_heater.ATTR_OPERATION_MODE}.{PRESET_MODE_NA}",
-                    [PRESET_MODE_NA],
-                )
-            return self._resource.serialize_capability_resources()
+            return self.get_water_heater_operation_modes()
 
         # Remote Resource
         if self.instance == f"{remote.DOMAIN}.{remote.ATTR_ACTIVITY}":
-            # Use the mode controller for a remote because the input controller
-            # only allows a preset of names as an input.
-            self._resource = AlexaModeResource([AlexaGlobalCatalog.SETTING_MODE], False)
-            activities = self.entity.attributes.get(remote.ATTR_ACTIVITY_LIST) or []
-            for activity in activities:
-                self._resource.add_mode(
-                    f"{remote.ATTR_ACTIVITY}.{activity}", [activity]
-                )
-            # Remotes with a single activity completely break Alexa discovery, add a
-            # fake activity to the mode controller (see issue #53832).
-            if len(activities) == 1:
-                self._resource.add_mode(
-                    f"{remote.ATTR_ACTIVITY}.{PRESET_MODE_NA}", [PRESET_MODE_NA]
-                )
-            return self._resource.serialize_capability_resources()
+            return self.get_remote_resource()
 
         # Cover Position Resources
         if self.instance == f"{cover.DOMAIN}.{cover.ATTR_POSITION}":
