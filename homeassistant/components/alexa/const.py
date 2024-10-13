@@ -226,3 +226,6 @@ class Handlers:
 
     thermostat_controller = "Alexa.ThermostatController"
     security_panel_controller = "Alexa.SecurityPanelController"
+
+
+TYPE_MAPPING_KEY = "@type"
