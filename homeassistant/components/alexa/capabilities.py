@@ -1827,6 +1827,26 @@ class AlexaRangeController(AlexaCapability):
 
         return None
 
+    def get_vacuum_speed_resource(self) -> dict[str, list[dict[str, Any]]]:
+        """Return vacuum speed resource."""
+        speed_list = self.entity.attributes[vacuum.ATTR_FAN_SPEED_LIST]
+        max_value = len(speed_list) - 1
+        self._resource = AlexaPresetResource(
+            labels=[AlexaGlobalCatalog.SETTING_FAN_SPEED],
+            min_value=0,
+            max_value=max_value,
+            precision=1,
+        )
+        for index, speed in enumerate(speed_list):
+            labels = [speed.replace("_", " ")]
+            if index == 1:
+                labels.append(AlexaGlobalCatalog.VALUE_MINIMUM)
+            if index == max_value:
+                labels.append(AlexaGlobalCatalog.VALUE_MAXIMUM)
+            self._resource.add_preset(value=index, labels=labels)
+
+        return self._resource.serialize_capability_resources()
+
     def capability_resources(self) -> dict[str, list[dict[str, Any]]]:
         """Return capabilityResources object."""
 
@@ -1923,23 +1943,7 @@ class AlexaRangeController(AlexaCapability):
 
         # Vacuum Fan Speed Resources
         if self.instance == f"{vacuum.DOMAIN}.{vacuum.ATTR_FAN_SPEED}":
-            speed_list = self.entity.attributes[vacuum.ATTR_FAN_SPEED_LIST]
-            max_value = len(speed_list) - 1
-            self._resource = AlexaPresetResource(
-                labels=[AlexaGlobalCatalog.SETTING_FAN_SPEED],
-                min_value=0,
-                max_value=max_value,
-                precision=1,
-            )
-            for index, speed in enumerate(speed_list):
-                labels = [speed.replace("_", " ")]
-                if index == 1:
-                    labels.append(AlexaGlobalCatalog.VALUE_MINIMUM)
-                if index == max_value:
-                    labels.append(AlexaGlobalCatalog.VALUE_MAXIMUM)
-                self._resource.add_preset(value=index, labels=labels)
-
-            return self._resource.serialize_capability_resources()
+            return self.get_vacuum_speed_resource()
 
         # Valve Position Resources
         if self.instance == f"{valve.DOMAIN}.{valve.ATTR_POSITION}":
