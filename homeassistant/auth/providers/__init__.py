@@ -166,9 +166,6 @@ async def load_auth_provider_module(
         raise HomeAssistantError(
             f"Unable to load auth provider {provider}: {err}"
         ) from err
-
-    if hass.config.skip_pip or not hasattr(module, "REQUIREMENTS"):
-        return module
     
     processed = hass.data.setdefault(DATA_REQS, set())
 
