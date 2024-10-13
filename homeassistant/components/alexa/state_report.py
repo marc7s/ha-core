@@ -246,16 +246,10 @@ class AlexaResponse:
         return self._response
 
 
-async def async_enable_proactive_mode(
-    hass: HomeAssistant, smart_home_config: AbstractConfig
-) -> CALLBACK_TYPE | None:
-    """Enable the proactive mode.
+class ProactiveCallbacks:
+    """Callbacks for proactive mode."""
 
-    Proactive mode makes this component report state changes to Alexa.
-    """
-    # Validate we can get access token.
-    await smart_home_config.async_get_access_token()
-
+    @staticmethod
     @callback
     def extra_significant_check(
         hass: HomeAssistant,
@@ -269,10 +263,14 @@ async def async_enable_proactive_mode(
         """Check if the serialized data has changed."""
         return old_extra_arg is not None and old_extra_arg != new_extra_arg
 
-    checker = await create_checker(hass, DOMAIN, extra_significant_check)
-
+    @staticmethod
     @callback
-    def _async_entity_state_filter(data: EventStateChangedData) -> bool:
+    def async_entity_state_filter(
+        hass: HomeAssistant,
+        smart_home_config: AbstractConfig,
+        data: EventStateChangedData,
+    ) -> bool:
+        """Filter entities for state change events."""
         if not hass.is_running:
             return False
 
@@ -288,6 +286,21 @@ async def async_enable_proactive_mode(
             return False
 
         return True
+
+
+async def async_enable_proactive_mode(
+    hass: HomeAssistant, smart_home_config: AbstractConfig
+) -> CALLBACK_TYPE | None:
+    """Enable the proactive mode.
+
+    Proactive mode makes this component report state changes to Alexa.
+    """
+    # Validate we can get access token.
+    await smart_home_config.async_get_access_token()
+
+    checker = await create_checker(
+        hass, DOMAIN, ProactiveCallbacks.extra_significant_check
+    )
 
     async def _async_entity_state_listener(
         event_: Event[EventStateChangedData],
@@ -341,7 +354,9 @@ async def async_enable_proactive_mode(
     return hass.bus.async_listen(
         EVENT_STATE_CHANGED,
         _async_entity_state_listener,
-        event_filter=_async_entity_state_filter,
+        event_filter=lambda event_filter: ProactiveCallbacks.async_entity_state_filter(
+            hass, smart_home_config, event_filter
+        ),
     )
 
 
