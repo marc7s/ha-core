@@ -219,3 +219,9 @@ class Inputs:
         "sport": "SPORT",
         "tv": "TV",
     }
+
+
+class Handlers:
+    """Handler names for the Alexa API."""
+
+    ThermostatController = "Alexa.ThermostatController"
