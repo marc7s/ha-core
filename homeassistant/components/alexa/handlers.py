@@ -831,7 +831,7 @@ def temperature_from_object(
     return TemperatureConverter.convert(temp, from_unit, to_unit)
 
 
-@HANDLERS.register((Handlers.ThermostatController, "SetTargetTemperature"))
+@HANDLERS.register((Handlers.thermostat_controller, "SetTargetTemperature"))
 async def async_api_set_target_temp(
     hass: ha.HomeAssistant,
     config: AbstractConfig,
@@ -858,7 +858,7 @@ async def async_api_set_target_temp(
         response.add_context_property(
             {
                 "name": "targetSetpoint",
-                "namespace": Handlers.ThermostatController,
+                "namespace": Handlers.thermostat_controller,
                 "value": {"value": temp, "scale": API_TEMP_UNITS[unit]},
             }
         )
@@ -870,7 +870,7 @@ async def async_api_set_target_temp(
         response.add_context_property(
             {
                 "name": "lowerSetpoint",
-                "namespace": Handlers.ThermostatController,
+                "namespace": Handlers.thermostat_controller,
                 "value": {"value": temp_low, "scale": API_TEMP_UNITS[unit]},
             }
         )
@@ -882,7 +882,7 @@ async def async_api_set_target_temp(
         response.add_context_property(
             {
                 "name": "upperSetpoint",
-                "namespace": Handlers.ThermostatController,
+                "namespace": Handlers.thermostat_controller,
                 "value": {"value": temp_high, "scale": API_TEMP_UNITS[unit]},
             }
         )
@@ -900,7 +900,7 @@ async def async_api_set_target_temp(
     return response
 
 
-@HANDLERS.register((Handlers.ThermostatController, "AdjustTargetTemperature"))
+@HANDLERS.register((Handlers.thermostat_controller, "AdjustTargetTemperature"))
 async def async_api_adjust_target_temp(
     hass: ha.HomeAssistant,
     config: AbstractConfig,
@@ -941,14 +941,14 @@ async def async_api_adjust_target_temp(
         response.add_context_property(
             {
                 "name": "upperSetpoint",
-                "namespace": Handlers.ThermostatController,
+                "namespace": Handlers.thermostat_controller,
                 "value": {"value": target_temp_high, "scale": API_TEMP_UNITS[unit]},
             }
         )
         response.add_context_property(
             {
                 "name": "lowerSetpoint",
-                "namespace": Handlers.ThermostatController,
+                "namespace": Handlers.thermostat_controller,
                 "value": {"value": target_temp_low, "scale": API_TEMP_UNITS[unit]},
             }
         )
@@ -968,7 +968,7 @@ async def async_api_adjust_target_temp(
         response.add_context_property(
             {
                 "name": "targetSetpoint",
-                "namespace": Handlers.ThermostatController,
+                "namespace": Handlers.thermostat_controller,
                 "value": {"value": target_temp, "scale": API_TEMP_UNITS[unit]},
             }
         )
@@ -986,7 +986,7 @@ async def async_api_adjust_target_temp(
     return response
 
 
-@HANDLERS.register((Handlers.ThermostatController, "SetThermostatMode"))
+@HANDLERS.register((Handlers.thermostat_controller, "SetThermostatMode"))
 async def async_api_set_thermostat_mode(
     hass: ha.HomeAssistant,
     config: AbstractConfig,
@@ -1052,7 +1052,7 @@ async def async_api_set_thermostat_mode(
     response.add_context_property(
         {
             "name": "thermostatMode",
-            "namespace": Handlers.ThermostatController,
+            "namespace": Handlers.thermostat_controller,
             "value": mode,
         }
     )

@@ -224,4 +224,4 @@ class Inputs:
 class Handlers:
     """Handler names for the Alexa API."""
 
-    ThermostatController = "Alexa.ThermostatController"
+    thermostat_controller = "Alexa.ThermostatController"
