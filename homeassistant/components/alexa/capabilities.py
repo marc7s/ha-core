@@ -1417,6 +1417,37 @@ class AlexaModeController(AlexaCapability):
         """Return True if properties can be retrieved."""
         return True
 
+    def get_fan_direction(self) -> Any:
+        """Return fan direction."""
+        mode = self.entity.attributes.get(fan.ATTR_DIRECTION, None)
+        if mode in (fan.DIRECTION_FORWARD, fan.DIRECTION_REVERSE, STATE_UNKNOWN):
+            return f"{fan.ATTR_DIRECTION}.{mode}"
+        return None
+
+    def get_preset_mode(self) -> Any:
+        """Return preset mode."""
+        mode = self.entity.attributes.get(fan.ATTR_PRESET_MODE, None)
+        if mode in self.entity.attributes.get(fan.ATTR_PRESET_MODES, None):
+            return f"{fan.ATTR_PRESET_MODE}.{mode}"
+        return None
+
+    def get_humidifier_mode(self) -> Any:
+        """Return humidifier mode."""
+        mode = self.entity.attributes.get(humidifier.ATTR_MODE)
+        modes: list[str] = (
+            self.entity.attributes.get(humidifier.ATTR_AVAILABLE_MODES) or []
+        )
+        if mode in modes:
+            return f"{humidifier.ATTR_MODE}.{mode}"
+        return None
+
+    def get_remote_activity(self) -> Any:
+        """Return remote activity."""
+        activity = self.entity.attributes.get(remote.ATTR_CURRENT_ACTIVITY, None)
+        if activity in self.entity.attributes.get(remote.ATTR_ACTIVITY_LIST, []):
+            return f"{remote.ATTR_ACTIVITY}.{activity}"
+        return None
+
     def get_property(self, name: str) -> Any:
         """Read and return a property."""
         if name != "mode":
@@ -1424,30 +1455,19 @@ class AlexaModeController(AlexaCapability):
 
         # Fan Direction
         if self.instance == f"{fan.DOMAIN}.{fan.ATTR_DIRECTION}":
-            mode = self.entity.attributes.get(fan.ATTR_DIRECTION, None)
-            if mode in (fan.DIRECTION_FORWARD, fan.DIRECTION_REVERSE, STATE_UNKNOWN):
-                return f"{fan.ATTR_DIRECTION}.{mode}"
+            return self.get_fan_direction()
 
         # Fan preset_mode
         if self.instance == f"{fan.DOMAIN}.{fan.ATTR_PRESET_MODE}":
-            mode = self.entity.attributes.get(fan.ATTR_PRESET_MODE, None)
-            if mode in self.entity.attributes.get(fan.ATTR_PRESET_MODES, None):
-                return f"{fan.ATTR_PRESET_MODE}.{mode}"
+            return self.get_preset_mode()
 
         # Humidifier mode
         if self.instance == f"{humidifier.DOMAIN}.{humidifier.ATTR_MODE}":
-            mode = self.entity.attributes.get(humidifier.ATTR_MODE)
-            modes: list[str] = (
-                self.entity.attributes.get(humidifier.ATTR_AVAILABLE_MODES) or []
-            )
-            if mode in modes:
-                return f"{humidifier.ATTR_MODE}.{mode}"
+            return self.get_humidifier_mode
 
         # Remote Activity
         if self.instance == f"{remote.DOMAIN}.{remote.ATTR_ACTIVITY}":
-            activity = self.entity.attributes.get(remote.ATTR_CURRENT_ACTIVITY, None)
-            if activity in self.entity.attributes.get(remote.ATTR_ACTIVITY_LIST, []):
-                return f"{remote.ATTR_ACTIVITY}.{activity}"
+            return self.get_remote_activity()
 
         # Water heater operation mode
         if self.instance == f"{water_heater.DOMAIN}.{water_heater.ATTR_OPERATION_MODE}":
