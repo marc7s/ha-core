@@ -1767,6 +1767,13 @@ class AlexaRangeController(AlexaCapability):
         """Return True if properties can be retrieved."""
         return True
 
+    def get_fan_speed_percentage(self) -> Any:
+        """Return fan speed percentage."""
+        supported = self.entity.attributes.get(ATTR_SUPPORTED_FEATURES, 0)
+        if supported and fan.FanEntityFeature.SET_SPEED:
+            return self.entity.attributes.get(fan.ATTR_PERCENTAGE)
+        return 100 if self.entity.state == fan.STATE_ON else 0
+
     def get_property(self, name: str) -> Any:
         """Read and return a property."""
         if name != "rangeValue":
@@ -1788,10 +1795,7 @@ class AlexaRangeController(AlexaCapability):
 
         # Fan speed percentage
         if self.instance == f"{fan.DOMAIN}.{fan.ATTR_PERCENTAGE}":
-            supported = self.entity.attributes.get(ATTR_SUPPORTED_FEATURES, 0)
-            if supported and fan.FanEntityFeature.SET_SPEED:
-                return self.entity.attributes.get(fan.ATTR_PERCENTAGE)
-            return 100 if self.entity.state == fan.STATE_ON else 0
+            return self.get_fan_speed_percentage()
 
         # Humidifier target humidity
         if self.instance == f"{humidifier.DOMAIN}.{humidifier.ATTR_HUMIDITY}":
