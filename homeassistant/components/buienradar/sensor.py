@@ -58,6 +58,7 @@ from .const import (
     MDI_WEATHER_PARTLY_CLOUDY,
     MDI_WEATHER_POURING,
     MDI_WEATHER_WINDY,
+    NO_FORCAST_FCDAY,
     STATE_CONDITION_CODES,
     STATE_CONDITIONS,
     STATE_DETAILED_CONDITIONS,
@@ -797,7 +798,7 @@ class BrSensor(SensorEntity):
                 try:
                     condition = data.get(FORECAST)[fcday].get(CONDITION)
                 except IndexError:
-                    _LOGGER.warning("No forecast for fcday=%s", fcday)
+                    _LOGGER.warning(NO_FORCAST_FCDAY, fcday)
                     return False
 
                 if condition:
@@ -826,7 +827,7 @@ class BrSensor(SensorEntity):
                         sensor_type[:-3]
                     )
                 except IndexError:
-                    _LOGGER.warning("No forecast for fcday=%s", fcday)
+                    _LOGGER.warning(NO_FORCAST_FCDAY, fcday)
                     return False
 
                 if self.state is not None:
@@ -839,7 +840,7 @@ class BrSensor(SensorEntity):
                     sensor_type[:-3]
                 )
             except IndexError:
-                _LOGGER.warning("No forecast for fcday=%s", fcday)
+                _LOGGER.warning(NO_FORCAST_FCDAY, fcday)
                 return False
             return True
 

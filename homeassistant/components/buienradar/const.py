@@ -70,3 +70,5 @@ MDI_GAUGE = "mdi:gauge"
 MDI_WEATHER_PARTLY_CLOUDY = "mdi:weather-partly-cloudy"
 MDI_WEATHER_POURING = "mdi:weather-pouring"
 MDI_WEATHER_WINDY = "mdi:weather-windy"
+
+NO_FORCAST_FCDAY = "No forecast for fcday=%s"
