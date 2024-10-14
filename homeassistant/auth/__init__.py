@@ -465,8 +465,6 @@ class AuthManager:
 
         token_type = self.determine_token_type(user, token_type)
 
-        expiry_time = self.get_expiry_time(token_type)
-
         if token_type is models.TOKEN_TYPE_NORMAL:
             expire_at = time.time() + REFRESH_TOKEN_EXPIRATION
         else:
