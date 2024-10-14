@@ -66,3 +66,4 @@ STATE_CONDITION_CODES = [
 ]
 
 MDI_GAUGE = "mdi:gauge"
+MDI_WEATHER_WINDY = "mdi:weather-windy"
