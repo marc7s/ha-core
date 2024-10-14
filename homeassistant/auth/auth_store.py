@@ -24,6 +24,7 @@ from .const import (
 from .permissions import system_policies
 from .permissions.models import PermissionLookup
 from .permissions.types import PolicyType
+from typing import Optional
 
 STORAGE_VERSION = 1
 STORAGE_KEY = "auth"
@@ -58,7 +59,7 @@ class AuthStore:
         self._loaded = False
         self._users: dict[str, models.User] = None  # type: ignore[assignment]
         self._groups: dict[str, models.Group] = None  # type: ignore[assignment]
-        self._perm_lookup: PermissionLookup = None  # type: ignore[assignment]
+        self._perm_lookup: Optional[PermissionLookup] = None  # type: ignore[assignment]
         self._store = Store[dict[str, list[dict[str, Any]]]](
             hass, STORAGE_VERSION, STORAGE_KEY, private=True, atomic_writes=True
         )
@@ -308,6 +309,95 @@ class AuthStore:
         credentials.data = data
         self._async_schedule_save()
 
+    def get_token_type(self, rt_dict):
+        if (rt_dict.get("token_type")) is None and rt_dict["client_id"] is None:
+            return models.TOKEN_TYPE_SYSTEM
+
+        return models.TOKEN_TYPE_NORMAL
+
+    def log_invalid_created_at(self, rt_dict: Any):
+        getLogger(__name__).error(
+            (
+                "Ignoring refresh token %(id)s with invalid created_at "
+                "%(created_at)s for user_id %(user_id)s"
+            ),
+            rt_dict,
+        )
+
+    def get_last_used_at(self, rt_dict):
+        if last_used_at_str := rt_dict.get("last_used_at"):
+            return dt_util.parse_datetime(last_used_at_str)
+
+        return None
+    
+    def create_refresh_token(self, rt_dict: Any, users: dict[str, models.User], credentials: dict[str, models.Credentials]):
+        created_at = dt_util.parse_datetime(rt_dict["created_at"])
+        if created_at is None:
+            self.log_invalid_created_at(rt_dict)
+            return None
+        
+        token_type = self.get_token_type(rt_dict)
+
+        last_used_at = self.get_last_used_at(rt_dict)
+
+        token = models.RefreshToken(
+                id=rt_dict["id"],
+                user=users[rt_dict["user_id"]],
+                client_id=rt_dict["client_id"],
+                # use dict.get to keep backward compatibility
+                client_name=rt_dict.get("client_name"),
+                client_icon=rt_dict.get("client_icon"),
+                token_type=token_type,
+                created_at=created_at,
+                access_token_expiration=timedelta(
+                    seconds=rt_dict["access_token_expiration"]
+                ),
+                token=rt_dict["token"],
+                jwt_key=rt_dict["jwt_key"],
+                last_used_at=last_used_at,
+                last_used_ip=rt_dict.get("last_used_ip"),
+                expire_at=rt_dict.get("expire_at"),
+                version=rt_dict.get("version"),
+            )
+        if "credential_id" in rt_dict:
+            token.credential = credentials.get(rt_dict["credential_id"])
+        
+        return token
+
+
+    def ensure_group_exists(self, group_exists, group_creator):
+        if not group_exists:
+            group = group_creator()
+            groups[group.id] = group
+
+
+    def collect_user_groups(self, data: dict, migrate_users_to_admin_group: bool, group_without_policy: bool, groups: dict[str, models.Group],
+                             users: dict[str, models.User]):
+        for user_dict in data["users"]:
+            # Collect the users group.
+            user_groups = []
+            for group_id in user_dict.get("group_ids", []):
+                # This is part of migrating from state 1
+                if group_id == group_without_policy:
+                    group_id = GROUP_ID_ADMIN
+                user_groups.append(groups[group_id])
+
+            # This is part of migrating from state 2
+            if not user_dict["system_generated"] and migrate_users_to_admin_group:
+                user_groups.append(groups[GROUP_ID_ADMIN])
+
+            users[user_dict["id"]] = models.User(
+                name=user_dict["name"],
+                groups=user_groups,
+                id=user_dict["id"],
+                is_owner=user_dict["is_owner"],
+                is_active=user_dict["is_active"],
+                system_generated=user_dict["system_generated"],
+                perm_lookup=self._perm_lookup,
+                # New in 2021.11
+                local_only=user_dict.get("local_only", False),
+            )
+
     async def async_load(self) -> None:  # noqa: C901
         """Load the users."""
         if self._loaded:
@@ -343,34 +433,19 @@ class AuthStore:
         # prevents crashing if user rolls back HA version after a new property
         # was added.
 
+        group_mappings = {
+            GROUP_ID_ADMIN: (GROUP_NAME_ADMIN, system_policies.ADMIN_POLICY, True, "has_admin_group"),
+            GROUP_ID_USER: (GROUP_NAME_USER, system_policies.USER_POLICY, True, "has_user_group"),
+            GROUP_ID_READ_ONLY: (GROUP_NAME_READ_ONLY, system_policies.READ_ONLY_POLICY, True, "has_read_only_group"),
+        }
+
+        id_key = "id"
+
         for group_dict in data.get("groups", []):
             policy: PolicyType | None = None
 
-            if group_dict["id"] == GROUP_ID_ADMIN:
-                has_admin_group = True
-
-                name = GROUP_NAME_ADMIN
-                policy = system_policies.ADMIN_POLICY
-                system_generated = True
-
-            elif group_dict["id"] == GROUP_ID_USER:
-                has_user_group = True
-
-                name = GROUP_NAME_USER
-                policy = system_policies.USER_POLICY
-                system_generated = True
-
-            elif group_dict["id"] == GROUP_ID_READ_ONLY:
-                has_read_only_group = True
-
-                name = GROUP_NAME_READ_ONLY
-                policy = system_policies.READ_ONLY_POLICY
-                system_generated = True
-
-            else:
-                name = group_dict["name"]
-                policy = group_dict.get("policy")
-                system_generated = False
+            if group_mappings[id_key] in group_mappings:
+                name, policy, system_generated, group_without_policy = group_mappings[id_key]
 
             # We don't want groups without a policy that are not system groups
             # This is part of migrating from state 1
@@ -393,47 +468,18 @@ class AuthStore:
         # admin group. We only do this if there are no other groups, as is
         # the expected state. If not expected state, not marking people admin.
         # This is part of migrating from state 1
+
+        # Reset group_without_policy if there are groups
         if groups and group_without_policy is not None:
             group_without_policy = None
 
-        # This is part of migrating from state 1 and 2
-        if not has_admin_group:
-            admin_group = _system_admin_group()
-            groups[admin_group.id] = admin_group
 
-        # This is part of migrating from state 1 and 2
-        if not has_read_only_group:
-            read_only_group = _system_read_only_group()
-            groups[read_only_group.id] = read_only_group
+        # Ensure the required system groups exist (migrating from state 1 and 2)
+        self.ensure_group_exists(has_admin_group, _system_admin_group)
+        self.ensure_group_exists(has_read_only_group, _system_read_only_group)
+        self.ensure_group_exists(has_user_group, _system_user_group)
 
-        if not has_user_group:
-            user_group = _system_user_group()
-            groups[user_group.id] = user_group
-
-        for user_dict in data["users"]:
-            # Collect the users group.
-            user_groups = []
-            for group_id in user_dict.get("group_ids", []):
-                # This is part of migrating from state 1
-                if group_id == group_without_policy:
-                    group_id = GROUP_ID_ADMIN
-                user_groups.append(groups[group_id])
-
-            # This is part of migrating from state 2
-            if not user_dict["system_generated"] and migrate_users_to_admin_group:
-                user_groups.append(groups[GROUP_ID_ADMIN])
-
-            users[user_dict["id"]] = models.User(
-                name=user_dict["name"],
-                groups=user_groups,
-                id=user_dict["id"],
-                is_owner=user_dict["is_owner"],
-                is_active=user_dict["is_active"],
-                system_generated=user_dict["system_generated"],
-                perm_lookup=perm_lookup,
-                # New in 2021.11
-                local_only=user_dict.get("local_only", False),
-            )
+        self.collect_user_groups(data["users"], migrate_users_to_admin_group, group_without_policy, groups, users)
 
         for cred_dict in data["credentials"]:
             credential = models.Credentials(
@@ -451,50 +497,9 @@ class AuthStore:
             if "jwt_key" not in rt_dict:
                 continue
 
-            created_at = dt_util.parse_datetime(rt_dict["created_at"])
-            if created_at is None:
-                getLogger(__name__).error(
-                    (
-                        "Ignoring refresh token %(id)s with invalid created_at "
-                        "%(created_at)s for user_id %(user_id)s"
-                    ),
-                    rt_dict,
-                )
-                continue
+            token = self.create_refresh_token(rt_dict, users, credentials)
 
-            if (token_type := rt_dict.get("token_type")) is None:
-                if rt_dict["client_id"] is None:
-                    token_type = models.TOKEN_TYPE_SYSTEM
-                else:
-                    token_type = models.TOKEN_TYPE_NORMAL
 
-            # old refresh_token don't have last_used_at (pre-0.78)
-            if last_used_at_str := rt_dict.get("last_used_at"):
-                last_used_at = dt_util.parse_datetime(last_used_at_str)
-            else:
-                last_used_at = None
-
-            token = models.RefreshToken(
-                id=rt_dict["id"],
-                user=users[rt_dict["user_id"]],
-                client_id=rt_dict["client_id"],
-                # use dict.get to keep backward compatibility
-                client_name=rt_dict.get("client_name"),
-                client_icon=rt_dict.get("client_icon"),
-                token_type=token_type,
-                created_at=created_at,
-                access_token_expiration=timedelta(
-                    seconds=rt_dict["access_token_expiration"]
-                ),
-                token=rt_dict["token"],
-                jwt_key=rt_dict["jwt_key"],
-                last_used_at=last_used_at,
-                last_used_ip=rt_dict.get("last_used_ip"),
-                expire_at=rt_dict.get("expire_at"),
-                version=rt_dict.get("version"),
-            )
-            if "credential_id" in rt_dict:
-                token.credential = credentials.get(rt_dict["credential_id"])
             users[rt_dict["user_id"]].refresh_tokens[token.id] = token
 
         self._groups = groups
