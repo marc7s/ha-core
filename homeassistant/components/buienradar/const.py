@@ -65,5 +65,6 @@ STATE_CONDITION_CODES = [
     "s",
 ]
 
+MDI_COMPASS_OUTLINE = "mdi:compass-outline"
 MDI_GAUGE = "mdi:gauge"
 MDI_WEATHER_WINDY = "mdi:weather-windy"
