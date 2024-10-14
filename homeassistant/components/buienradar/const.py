@@ -64,3 +64,5 @@ STATE_CONDITION_CODES = [
     "g",
     "s",
 ]
+
+MDI_GAUGE = "mdi:gauge"
