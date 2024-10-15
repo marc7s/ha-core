@@ -432,28 +432,25 @@ def websocket_list_languages(
     tts_language_tags = tts.async_get_text_to_speech_languages(hass)
     pipeline_languages: set[str] | None = None
 
-    if conv_language_tags and conv_language_tags != MATCH_ALL:
+    def get_languages(language_tags: set[str]) -> set[str]:
         languages = set()
-        for language_tag in conv_language_tags:
+        for language_tag in language_tags:
             dialect = language_util.Dialect.parse(language_tag)
             languages.add(dialect.language)
-        pipeline_languages = languages
+        return languages
+
+    if conv_language_tags and conv_language_tags != MATCH_ALL:
+        pipeline_languages = get_languages(conv_language_tags)
 
     if stt_language_tags:
-        languages = set()
-        for language_tag in stt_language_tags:
-            dialect = language_util.Dialect.parse(language_tag)
-            languages.add(dialect.language)
+        languages = get_languages(stt_language_tags)
         if pipeline_languages is not None:
             pipeline_languages = language_util.intersect(pipeline_languages, languages)
         else:
             pipeline_languages = languages
 
     if tts_language_tags:
-        languages = set()
-        for language_tag in tts_language_tags:
-            dialect = language_util.Dialect.parse(language_tag)
-            languages.add(dialect.language)
+        languages = get_languages(tts_language_tags)
         if pipeline_languages is not None:
             pipeline_languages = language_util.intersect(pipeline_languages, languages)
         else:
