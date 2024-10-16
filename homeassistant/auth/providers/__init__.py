@@ -166,17 +166,23 @@ async def load_auth_provider_module(
         raise HomeAssistantError(
             f"Unable to load auth provider {provider}: {err}"
         ) from err
-    
-    processed = hass.data.setdefault(DATA_REQS, set())
 
-    if provider not in processed or not hass.config.skip_pip or hasattr(module, "REQUIREMENTS"):
-        reqs = module.REQUIREMENTS
-        await requirements.async_process_requirements(
-            hass, f"auth provider {provider}", reqs
-        )
-        processed.add(provider)
+    if not hass.config.skip_pip and hasattr(module, "REQUIREMENTS"):
+        if (processed := hass.data.get(DATA_REQS)) is None:
+            processed = hass.data[DATA_REQS] = set()
+
+        if provider not in processed:
+            reqs = getattr(module, "REQUIREMENTS", None)
+            if reqs:
+                await requirements.async_process_requirements(
+                    hass, f"auth provider {provider}", reqs
+                )
+                processed.add(provider)
 
     return module
+
+
+
 
 
 class LoginFlow(data_entry_flow.FlowHandler[AuthFlowResult, tuple[str, str]]):
