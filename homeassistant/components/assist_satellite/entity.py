@@ -20,6 +20,7 @@ from homeassistant.components.assist_pipeline import (
     async_get_pipeline,
     async_get_pipelines,
     async_pipeline_from_audio_stream,
+    create_pipeline_run_context,
     vad,
 )
 from homeassistant.components.media_player import async_process_play_media_url
@@ -312,12 +313,22 @@ class AssistSatelliteEntity(entity.Entity):
         self._run_has_tts = False
 
         assert self.platform.config_entry is not None
+        pipeline_run = create_pipeline_run_context(
+            self.hass,
+            context=self._context,
+            pipeline_id=self._resolve_pipeline(),
+            start_stage=start_stage,
+            end_stage=end_stage,
+            event_callback=self._internal_on_pipeline_event,
+            tts_audio_output=self.tts_options,
+            audio_settings=AudioSettings(
+                silence_seconds=self._resolve_vad_sensitivity()
+            ),
+        )
         self._pipeline_task = self.platform.config_entry.async_create_background_task(
             self.hass,
             async_pipeline_from_audio_stream(
-                self.hass,
-                context=self._context,
-                event_callback=self._internal_on_pipeline_event,
+                pipeline_run,
                 stt_metadata=stt.SpeechMetadata(
                     language="",  # set in async_pipeline_from_audio_stream
                     format=stt.AudioFormats.WAV,
@@ -327,16 +338,9 @@ class AssistSatelliteEntity(entity.Entity):
                     channel=stt.AudioChannels.CHANNEL_MONO,
                 ),
                 stt_stream=audio_stream,
-                pipeline_id=self._resolve_pipeline(),
                 conversation_id=self._conversation_id,
                 device_id=device_id,
-                tts_audio_output=self.tts_options,
                 wake_word_phrase=wake_word_phrase,
-                audio_settings=AudioSettings(
-                    silence_seconds=self._resolve_vad_sensitivity()
-                ),
-                start_stage=start_stage,
-                end_stage=end_stage,
             ),
             f"{self.entity_id}_pipeline",
         )
