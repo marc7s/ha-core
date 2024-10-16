@@ -308,41 +308,9 @@ class AuthStore:
         credentials.data = data
         self._async_schedule_save()
 
-    async def async_load(self) -> None:  # noqa: C901
-        """Load the users."""
-        if self._loaded:
-            raise RuntimeError("Auth storage is already loaded")
-        self._loaded = True
-
-        dev_reg = dr.async_get(self.hass)
-        ent_reg = er.async_get(self.hass)
-        data = await self._store.async_load()
-
-        perm_lookup = PermissionLookup(ent_reg, dev_reg)
-        self._perm_lookup = perm_lookup
-
-        if data is None or not isinstance(data, dict):
-            self._set_defaults()
-            return
-
-        users: dict[str, models.User] = {}
+    def set_policies(self,data:  dict[str, list[dict[str, Any]]], has_admin_group: bool, has_user_group: bool, group_without_policy: bool):
         groups: dict[str, models.Group] = {}
-        credentials: dict[str, models.Credentials] = {}
-
-        # Soft-migrating data as we load. We are going to make sure we have a
-        # read only group and an admin group. There are two states that we can
-        # migrate from:
-        # 1. Data from a recent version which has a single group without policy
-        # 2. Data from old version which has no groups
-        has_admin_group = False
-        has_user_group = False
-        has_read_only_group = False
-        group_without_policy = None
-
-        # When creating objects we mention each attribute explicitly. This
-        # prevents crashing if user rolls back HA version after a new property
-        # was added.
-
+          
         for group_dict in data.get("groups", []):
             policy: PolicyType | None = None
 
@@ -385,18 +353,10 @@ class AuthStore:
                 system_generated=system_generated,
             )
 
-        # If there are no groups, add all existing users to the admin group.
-        # This is part of migrating from state 2
-        migrate_users_to_admin_group = not groups and group_without_policy is None
+        return groups, group_without_policy, has_user_group, has_admin_group, has_read_only_group 
+    
 
-        # If we find a no_policy_group, we need to migrate all users to the
-        # admin group. We only do this if there are no other groups, as is
-        # the expected state. If not expected state, not marking people admin.
-        # This is part of migrating from state 1
-        if groups and group_without_policy is not None:
-            group_without_policy = None
-
-        # This is part of migrating from state 1 and 2
+    def verify_user_group(self, groups: dict[str, models.Group], has_admin_group: bool, has_read_only_group: bool, has_user_group: bool):
         if not has_admin_group:
             admin_group = _system_admin_group()
             groups[admin_group.id] = admin_group
@@ -410,6 +370,13 @@ class AuthStore:
             user_group = _system_user_group()
             groups[user_group.id] = user_group
 
+        return groups
+
+    def check_and_set_group_without_policy(self, groups: dict[str, models.Group], group_without_policy: bool):
+        if groups and group_without_policy is not None:
+            group_without_policy = None
+        
+    def set_user_groups(self, data: dict[str, list[dict[str, Any]]], users: dict[str, models.User], groups: dict[str, models.Group], group_without_policy: bool, migrate_users_to_admin_group: bool):
         for user_dict in data["users"]:
             # Collect the users group.
             user_groups = []
@@ -430,11 +397,14 @@ class AuthStore:
                 is_owner=user_dict["is_owner"],
                 is_active=user_dict["is_active"],
                 system_generated=user_dict["system_generated"],
-                perm_lookup=perm_lookup,
+                perm_lookup=self.perm_lookup,
                 # New in 2021.11
                 local_only=user_dict.get("local_only", False),
             )
+        
+        return users
 
+    def set_credientials(self, credentials: dict[str, models.Credentials],users: dict[str, models.User] ,data: Any):
         for cred_dict in data["credentials"]:
             credential = models.Credentials(
                 id=cred_dict["id"],
@@ -445,8 +415,18 @@ class AuthStore:
             )
             credentials[cred_dict["id"]] = credential
             users[cred_dict["user_id"]].credentials.append(credential)
-
-        for rt_dict in data["refresh_tokens"]:
+        return cred_dict, users
+    
+    def set_token_type_if_none(self, rt_dict: dict[str, Any]):
+        token_type = rt_dict.get("token_type")
+        if (token_type is None):
+            if rt_dict["client_id"] is None:
+                return models.TOKEN_TYPE_SYSTEM
+            return models.TOKEN_TYPE_NORMAL
+        return token_type
+    
+    def generate_refresh_token_to_users(self, token: list[dict[str, Any]], users: dict[str, models.User], credentials: dict[str, models.Credentials]):
+        for rt_dict in token:
             # Filter out the old keys that don't have jwt_key (pre-0.76)
             if "jwt_key" not in rt_dict:
                 continue
@@ -462,11 +442,7 @@ class AuthStore:
                 )
                 continue
 
-            if (token_type := rt_dict.get("token_type")) is None:
-                if rt_dict["client_id"] is None:
-                    token_type = models.TOKEN_TYPE_SYSTEM
-                else:
-                    token_type = models.TOKEN_TYPE_NORMAL
+            token_type = self.set_token_type_if_none(rt_dict)
 
             # old refresh_token don't have last_used_at (pre-0.78)
             if last_used_at_str := rt_dict.get("last_used_at"):
@@ -496,9 +472,63 @@ class AuthStore:
             if "credential_id" in rt_dict:
                 token.credential = credentials.get(rt_dict["credential_id"])
             users[rt_dict["user_id"]].refresh_tokens[token.id] = token
+            return users
+        
+    async def async_load(self) -> None:  # noqa: C901
+        """Load the users."""
+        if self._loaded:
+            raise RuntimeError("Auth storage is already loaded")
+        self._loaded = True
 
-        self._groups = groups
-        self._users = users
+        dev_reg = dr.async_get(self.hass)
+        ent_reg = er.async_get(self.hass)
+        data = await self._store.async_load()
+
+        perm_lookup = PermissionLookup(ent_reg, dev_reg)
+        self._perm_lookup = perm_lookup
+
+        if data is None or not isinstance(data, dict):
+            self._set_defaults()
+            return
+
+        users: dict[str, models.User] = {}
+        groups: dict[str, models.Group] = {}
+        credentials: dict[str, models.Credentials] = {}
+
+        # Soft-migrating data as we load. We are going to make sure we have a
+        # read only group and an admin group. There are two states that we can
+        # migrate from:
+        # 1. Data from a recent version which has a single group without policy
+        # 2. Data from old version which has no groups
+        has_admin_group = False
+        has_user_group = False
+        has_read_only_group = False
+        group_without_policy = None
+
+        # When creating objects we mention each attribute explicitly. This
+        # prevents crashing if user rolls back HA version after a new property
+        # was added.
+
+        groups, group_without_policy, has_user_group, has_admin_group, has_read_only_group = self.set_policies(data, has_admin_group, has_user_group, group_without_policy)
+    
+        # If there are no groups, add all existing users to the admin group.
+        # This is part of migrating from state 2
+        migrate_users_to_admin_group = not groups and group_without_policy is None
+
+        # If we find a no_policy_group, we need to migrate all users to the
+        # admin group. We only do this if there are no other groups, as is
+        # the expected state. If not expected state, not marking people admin.
+        # This is part of migrating from state 1
+        group_without_policy = self.check_and_set_group_without_policy(groups, group_without_policy)
+
+        # This is part of migrating from state 1 and 2
+        self.verify_user_group(groups, has_admin_group, has_user_group, has_read_only_group)
+
+        users = self.set_user_groups(data["users"], users, groups, group_without_policy, migrate_users_to_admin_group)
+
+
+        credentials, self.groups = self.set_credientials(credentials, users, data)
+        self._users = self.generate_refresh_token_to_users(data["refresh_tokens"], users, credentials)
         self._build_token_id_to_user_id()
         self._async_schedule_save(INITIAL_LOAD_SAVE_DELAY)
 
