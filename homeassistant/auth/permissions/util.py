@@ -86,7 +86,11 @@ def _gen_dict_test_func(
 
     def test_value(object_id: str, key: str) -> bool | None:
         """Test if permission is allowed based on the keys."""
-        schema: ValueType = lookup_func(perm_lookup, lookup_dict, object_id)
+        schema = None
+        if lookup_func == lookup_all:
+            schema: ValueType = lookup_func(lookup_dict)
+        else:
+            schema: ValueType = lookup_func(perm_lookup, lookup_dict, object_id)
 
         if schema is None or isinstance(schema, bool):
             return schema
