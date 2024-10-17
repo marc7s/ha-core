@@ -62,10 +62,8 @@ class CommandLineAuthProvider(AuthProvider):
     async def async_login_flow(self, context: dict[str, Any] | None) -> LoginFlow:
         """Return a flow to login."""
         return CommandLineLoginFlow(self)
-
-    async def async_validate_login(self, username: str, password: str) -> None:
-        """Validate a username and password."""
-        env = {"username": username, "password": password}
+    
+    async def async_authenticate(self, env: dict[str, str]) -> bytes:
         try:
             process = await asyncio.create_subprocess_exec(
                 self.config[CONF_COMMAND],
@@ -75,19 +73,22 @@ class CommandLineAuthProvider(AuthProvider):
                 close_fds=False,  # required for posix_spawn
             )
             stdout, _ = await process.communicate()
+
+            if process.returncode != 0:
+                _LOGGER.error(
+                    "User %r failed to authenticate, command exited with code %d",
+                    env["username"],
+                    process.returncode,
+                )
+                raise InvalidAuthError
+            
+            return stdout
         except OSError as err:
             # happens when command doesn't exist or permission is denied
-            _LOGGER.error("Error while authenticating %r: %s", username, err)
+            _LOGGER.error("Error while authenticating %r: %s", env["username"], err)
             raise InvalidAuthError from err
 
-        if process.returncode != 0:
-            _LOGGER.error(
-                "User %r failed to authenticate, command exited with code %d",
-                username,
-                process.returncode,
-            )
-            raise InvalidAuthError
-
+    def set_metadata(self, stdout: bytes, env: dict[str, str]) -> None:
         if self.config[CONF_META]:
             meta: dict[str, str] = {}
             for _line in stdout.splitlines():
@@ -103,7 +104,16 @@ class CommandLineAuthProvider(AuthProvider):
                 value = value.strip()
                 if key in self.ALLOWED_META_KEYS:
                     meta[key] = value
-            self._user_meta[username] = meta
+            self._user_meta[env["username"]] = meta
+
+    async def async_validate_login(self, username: str, password: str) -> None:
+        """Validate a username and password."""
+        env = {"username": username, "password": password}
+        # Login
+        stdout = self.authenticate(env)
+        # Set metadata of user
+        self.set_metadata(stdout, env)
+
 
     async def async_get_or_create_credentials(
         self, flow_result: Mapping[str, str]
