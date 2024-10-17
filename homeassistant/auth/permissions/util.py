@@ -14,9 +14,7 @@ type LookupFunc = Callable[[PermissionLookup, SubCategoryDict, str], ValueType |
 type SubCatLookupType = dict[str, LookupFunc]
 
 
-def lookup_all(
-    perm_lookup: PermissionLookup, lookup_dict: SubCategoryDict, object_id: str
-) -> ValueType:
+def lookup_all(lookup_dict: SubCategoryDict) -> ValueType:
     """Look up permission for all."""
     # In case of ALL category, lookup_dict IS the schema.
     return cast(ValueType, lookup_dict)
