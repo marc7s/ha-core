@@ -1434,6 +1434,33 @@ class PipelineInput:
             return await self.run.speech_to_text(self.stt_metadata, stt_input_stream)
         return None
 
+    async def set_current_stage_for_end_stage(
+        self, current_stage: PipelineStage | None, intent_input: str | None
+    ) -> PipelineStage | None:
+        """Set current stage based on end stage."""
+        tts_input = self.tts_input
+
+        if current_stage == PipelineStage.INTENT:
+            # intent-recognition
+            assert intent_input is not None
+            tts_input = await self.run.recognize_intent(
+                intent_input,
+                self.conversation_id,
+                self.device_id,
+            )
+            if tts_input.strip():
+                current_stage = PipelineStage.TTS
+            else:
+                # Skip TTS
+                current_stage = PipelineStage.END
+
+        if self.run.end_stage != PipelineStage.INTENT:
+            # text-to-speech
+            if current_stage == PipelineStage.TTS:
+                assert tts_input is not None
+                await self.run.text_to_speech(tts_input)
+        return current_stage
+
     async def execute(self) -> None:
         """Run pipeline."""
         self.run.start(device_id=self.device_id)
@@ -1470,27 +1497,9 @@ class PipelineInput:
                 current_stage = PipelineStage.INTENT
 
             if self.run.end_stage != PipelineStage.STT:
-                tts_input = self.tts_input
-
-                if current_stage == PipelineStage.INTENT:
-                    # intent-recognition
-                    assert intent_input is not None
-                    tts_input = await self.run.recognize_intent(
-                        intent_input,
-                        self.conversation_id,
-                        self.device_id,
-                    )
-                    if tts_input.strip():
-                        current_stage = PipelineStage.TTS
-                    else:
-                        # Skip TTS
-                        current_stage = PipelineStage.END
-
-                if self.run.end_stage != PipelineStage.INTENT:
-                    # text-to-speech
-                    if current_stage == PipelineStage.TTS:
-                        assert tts_input is not None
-                        await self.run.text_to_speech(tts_input)
+                current_stage = await self.set_current_stage_for_end_stage(
+                    current_stage, intent_input
+                )
 
         except PipelineError as err:
             self.run.process_event(
