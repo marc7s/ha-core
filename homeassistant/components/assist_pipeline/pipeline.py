@@ -1378,6 +1378,21 @@ class PipelineInput:
 
     device_id: str | None = None
 
+    async def buffer_then_audio_stream(
+        self,
+        stt_audio_buffer: list[EnhancedAudioChunk],
+        stt_processed_stream: AsyncIterable[EnhancedAudioChunk] | None,
+    ) -> AsyncGenerator[EnhancedAudioChunk]:
+        """Send audio buffer to speech-to-text and then move it to stream."""
+        # Buffered audio
+        for chunk in stt_audio_buffer:
+            yield chunk
+
+        # Streamed audio
+        assert stt_processed_stream is not None
+        async for chunk in stt_processed_stream:
+            yield chunk
+
     async def get_intent_input(
         self,
         current_stage: PipelineStage | None,
@@ -1412,21 +1427,10 @@ class PipelineInput:
             stt_input_stream = stt_processed_stream
 
             if stt_audio_buffer:
-                # Send audio in the buffer first to speech-to-text, then move on to stt_stream.
-                # This is basically an async itertools.chain.
-                async def buffer_then_audio_stream() -> (
-                    AsyncGenerator[EnhancedAudioChunk]
-                ):
-                    # Buffered audio
-                    for chunk in stt_audio_buffer:
-                        yield chunk
+                stt_input_stream = self.buffer_then_audio_stream(
+                    stt_audio_buffer, stt_processed_stream
+                )
 
-                    # Streamed audio
-                    assert stt_processed_stream is not None
-                    async for chunk in stt_processed_stream:
-                        yield chunk
-
-                stt_input_stream = buffer_then_audio_stream()
             return await self.run.speech_to_text(self.stt_metadata, stt_input_stream)
         return None
 
