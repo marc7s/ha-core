@@ -308,7 +308,7 @@ class AuthStore:
         credentials.data = data
         self._async_schedule_save()
 
-    def set_policies(self,data:  dict[str, list[dict[str, Any]]], has_admin_group: bool, has_user_group: bool, group_without_policy: bool):
+    def set_policies(self,data:  dict[str, list[dict[str, Any]]], has_admin_group: bool, has_user_group: bool, group_without_policy: bool, has_read_only_group: bool):
         groups: dict[str, models.Group] = {}
           
         for group_dict in data.get("groups", []):
@@ -472,7 +472,7 @@ class AuthStore:
             if "credential_id" in rt_dict:
                 token.credential = credentials.get(rt_dict["credential_id"])
             users[rt_dict["user_id"]].refresh_tokens[token.id] = token
-            return users
+        return users
         
     async def async_load(self) -> None:  # noqa: C901
         """Load the users."""
@@ -509,7 +509,7 @@ class AuthStore:
         # prevents crashing if user rolls back HA version after a new property
         # was added.
 
-        groups, group_without_policy, has_user_group, has_admin_group, has_read_only_group = self.set_policies(data, has_admin_group, has_user_group, group_without_policy)
+        groups, group_without_policy, has_user_group, has_admin_group, has_read_only_group = self.set_policies(data, has_admin_group, has_user_group, group_without_policy, has_read_only_group)
     
         # If there are no groups, add all existing users to the admin group.
         # This is part of migrating from state 2
