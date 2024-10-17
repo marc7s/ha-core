@@ -1492,30 +1492,30 @@ class PipelineInput:
             await self.run.end()
 
     async def prepare_tasks(
-        self, start_stage_index: int, end_stage_index: int, STAGE_ORDER: list
+        self, start_stage_index: int, end_stage_index: int, stage_order: list
     ) -> list:
         """Get prepared tasks."""
         prepare_tasks = []
 
         if (
             start_stage_index
-            <= STAGE_ORDER.index(PipelineStage.WAKE_WORD)
+            <= stage_order.index(PipelineStage.WAKE_WORD)
             <= end_stage_index
         ):
             prepare_tasks.append(self.run.prepare_wake_word_detection())
 
-        if start_stage_index <= STAGE_ORDER.index(PipelineStage.STT) <= end_stage_index:
+        if start_stage_index <= stage_order.index(PipelineStage.STT) <= end_stage_index:
             # self.stt_metadata can't be None or we'd raise above
             prepare_tasks.append(self.run.prepare_speech_to_text(self.stt_metadata))  # type: ignore[arg-type]
 
         if (
             start_stage_index
-            <= STAGE_ORDER.index(PipelineStage.INTENT)
+            <= stage_order.index(PipelineStage.INTENT)
             <= end_stage_index
         ):
             prepare_tasks.append(self.run.prepare_recognize_intent())
 
-        if start_stage_index <= STAGE_ORDER.index(PipelineStage.TTS) <= end_stage_index:
+        if start_stage_index <= stage_order.index(PipelineStage.TTS) <= end_stage_index:
             prepare_tasks.append(self.run.prepare_text_to_speech())
 
         return prepare_tasks
