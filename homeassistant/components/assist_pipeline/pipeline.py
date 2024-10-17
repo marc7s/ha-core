@@ -1491,6 +1491,35 @@ class PipelineInput:
             # thread, etc.
             await self.run.end()
 
+    async def prepare_tasks(
+        self, start_stage_index: int, end_stage_index: int, STAGE_ORDER: list
+    ) -> list:
+        """Get prepared tasks."""
+        prepare_tasks = []
+
+        if (
+            start_stage_index
+            <= STAGE_ORDER.index(PipelineStage.WAKE_WORD)
+            <= end_stage_index
+        ):
+            prepare_tasks.append(self.run.prepare_wake_word_detection())
+
+        if start_stage_index <= STAGE_ORDER.index(PipelineStage.STT) <= end_stage_index:
+            # self.stt_metadata can't be None or we'd raise above
+            prepare_tasks.append(self.run.prepare_speech_to_text(self.stt_metadata))  # type: ignore[arg-type]
+
+        if (
+            start_stage_index
+            <= STAGE_ORDER.index(PipelineStage.INTENT)
+            <= end_stage_index
+        ):
+            prepare_tasks.append(self.run.prepare_recognize_intent())
+
+        if start_stage_index <= STAGE_ORDER.index(PipelineStage.TTS) <= end_stage_index:
+            prepare_tasks.append(self.run.prepare_text_to_speech())
+
+        return prepare_tasks
+
     async def validate(self) -> None:
         """Validate pipeline input against start stage."""
         if self.run.start_stage in (PipelineStage.WAKE_WORD, PipelineStage.STT):
@@ -1525,39 +1554,17 @@ class PipelineInput:
         start_stage_index = PIPELINE_STAGE_ORDER.index(self.run.start_stage)
         end_stage_index = PIPELINE_STAGE_ORDER.index(self.run.end_stage)
 
-        prepare_tasks = []
+        prepare_tasks = await self.prepare_tasks(
+            start_stage_index, end_stage_index, PIPELINE_STAGE_ORDER
+        )
 
-        if (
-            start_stage_index
-            <= PIPELINE_STAGE_ORDER.index(PipelineStage.WAKE_WORD)
-            <= end_stage_index
-        ):
-            prepare_tasks.append(self.run.prepare_wake_word_detection())
+        coroutines = [
+            task if asyncio.iscoroutine(task) else asyncio.to_thread(task)
+            for task in prepare_tasks
+        ]
 
-        if (
-            start_stage_index
-            <= PIPELINE_STAGE_ORDER.index(PipelineStage.STT)
-            <= end_stage_index
-        ):
-            # self.stt_metadata can't be None or we'd raise above
-            prepare_tasks.append(self.run.prepare_speech_to_text(self.stt_metadata))  # type: ignore[arg-type]
-
-        if (
-            start_stage_index
-            <= PIPELINE_STAGE_ORDER.index(PipelineStage.INTENT)
-            <= end_stage_index
-        ):
-            prepare_tasks.append(self.run.prepare_recognize_intent())
-
-        if (
-            start_stage_index
-            <= PIPELINE_STAGE_ORDER.index(PipelineStage.TTS)
-            <= end_stage_index
-        ):
-            prepare_tasks.append(self.run.prepare_text_to_speech())
-
-        if prepare_tasks:
-            await asyncio.gather(*prepare_tasks)
+        if coroutines:
+            await asyncio.gather(*coroutines)
 
 
 class PipelinePreferred(CollectionError):
