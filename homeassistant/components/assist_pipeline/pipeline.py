@@ -125,6 +125,7 @@ class DefaultPipelineSettingsHelper:
     ) -> tuple[str | None, str | None]:
         """Check if the STT engine is valid."""
         stt_language: str | None = None
+        stt_engine: stt.SpeechToTextEntity | stt.Provider | None = None
 
         if stt_engine_id is None:
             stt_engine_id = stt.async_default_engine(hass)
@@ -158,6 +159,7 @@ class DefaultPipelineSettingsHelper:
         """Check if the TTS engine is valid."""
         tts_voice: str | None = None
         tts_language: str | None = None
+        tts_engine: tts.TextToSpeechEntity | tts.Provider | None = None
 
         if tts_engine_id is None:
             tts_engine_id = tts.async_default_engine(hass)
@@ -204,8 +206,6 @@ def _async_resolve_default_pipeline_settings(
     """
     conversation_language = "en"
     pipeline_language = "en"
-    stt_language = None
-    tts_language = None
     wake_word_entity = None
     wake_word_id = None
 
