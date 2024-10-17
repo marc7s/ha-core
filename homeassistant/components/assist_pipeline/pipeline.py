@@ -1399,9 +1399,10 @@ class PipelineInput:
         current_stage: PipelineStage | None,
         stt_processed_stream: AsyncIterable[EnhancedAudioChunk] | None,
         stt_audio_buffer: list[EnhancedAudioChunk],
-    ) -> str | None:
+    ) -> tuple[str | None, PipelineStage | None]:
         """Run speech-to-text."""
         # speech-to-text
+        intent_input = self.intent_input
         if current_stage == PipelineStage.STT:
             assert self.stt_metadata is not None
             assert stt_processed_stream is not None
@@ -1432,8 +1433,12 @@ class PipelineInput:
                     stt_audio_buffer, stt_processed_stream
                 )
 
-            return await self.run.speech_to_text(self.stt_metadata, stt_input_stream)
-        return None
+            intent_input = await self.run.speech_to_text(
+                self.stt_metadata, stt_input_stream
+            )
+            current_stage = PipelineStage.INTENT
+            return intent_input, current_stage
+        return intent_input, current_stage
 
     async def set_current_stage_for_end_stage(
         self, current_stage: PipelineStage | None, intent_input: str | None
@@ -1490,12 +1495,9 @@ class PipelineInput:
 
                 current_stage = PipelineStage.STT
 
-            intent_input = await self.get_intent_input(
+            intent_input, current_stage = await self.get_intent_input(
                 current_stage, stt_processed_stream, stt_audio_buffer
             )
-
-            if intent_input is not None:
-                current_stage = PipelineStage.INTENT
 
             if self.run.end_stage != PipelineStage.STT:
                 current_stage = await self.set_current_stage_for_end_stage(
