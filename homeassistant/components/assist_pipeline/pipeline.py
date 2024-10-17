@@ -157,6 +157,7 @@ class DefaultPipelineSettingsHelper:
     ) -> tuple[str | None, str | None, str | None]:
         """Check if the TTS engine is valid."""
         tts_voice: str | None = None
+        tts_language: str | None = None
 
         if tts_engine_id is None:
             tts_engine_id = tts.async_default_engine(hass)
