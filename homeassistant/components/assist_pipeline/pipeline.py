@@ -1378,6 +1378,65 @@ class PipelineInput:
 
     device_id: str | None = None
 
+    async def speech_to_text(
+        self,
+        current_stage: PipelineStage | None,
+        stt_processed_stream: AsyncIterable[EnhancedAudioChunk] | None,
+        stt_audio_buffer: list[EnhancedAudioChunk],
+    ) -> str | None:
+        """Run speech-to-text."""
+        # speech-to-text
+        intent_input = self.intent_input
+        if current_stage == PipelineStage.STT:
+            assert self.stt_metadata is not None
+            assert stt_processed_stream is not None
+
+            if self.wake_word_phrase is not None:
+                # Avoid duplicate wake-ups by checking cooldown
+                last_wake_up = self.run.hass.data[DATA_LAST_WAKE_UP].get(
+                    self.wake_word_phrase
+                )
+                if last_wake_up is not None:
+                    sec_since_last_wake_up = time.monotonic() - last_wake_up
+                    if sec_since_last_wake_up < WAKE_WORD_COOLDOWN:
+                        _LOGGER.debug(
+                            "Speech-to-text cancelled to avoid duplicate wake-up for %s",
+                            self.wake_word_phrase,
+                        )
+                        raise DuplicateWakeUpDetectedError(self.wake_word_phrase)
+
+                # Record last wake up time to block duplicate detections
+                self.run.hass.data[DATA_LAST_WAKE_UP][self.wake_word_phrase] = (
+                    time.monotonic()
+                )
+
+            stt_input_stream = stt_processed_stream
+
+            if stt_audio_buffer:
+                # Send audio in the buffer first to speech-to-text, then move on to stt_stream.
+                # This is basically an async itertools.chain.
+                async def buffer_then_audio_stream() -> (
+                    AsyncGenerator[EnhancedAudioChunk]
+                ):
+                    # Buffered audio
+                    for chunk in stt_audio_buffer:
+                        yield chunk
+
+                    # Streamed audio
+                    assert stt_processed_stream is not None
+                    async for chunk in stt_processed_stream:
+                        yield chunk
+
+                stt_input_stream = buffer_then_audio_stream()
+
+            intent_input = await self.run.speech_to_text(
+                self.stt_metadata,
+                stt_input_stream,
+            )
+            current_stage = PipelineStage.INTENT
+            return intent_input
+        return None
+
     async def execute(self) -> None:
         """Run pipeline."""
         self.run.start(device_id=self.device_id)
@@ -1406,55 +1465,9 @@ class PipelineInput:
 
                 current_stage = PipelineStage.STT
 
-            # speech-to-text
-            intent_input = self.intent_input
-            if current_stage == PipelineStage.STT:
-                assert self.stt_metadata is not None
-                assert stt_processed_stream is not None
-
-                if self.wake_word_phrase is not None:
-                    # Avoid duplicate wake-ups by checking cooldown
-                    last_wake_up = self.run.hass.data[DATA_LAST_WAKE_UP].get(
-                        self.wake_word_phrase
-                    )
-                    if last_wake_up is not None:
-                        sec_since_last_wake_up = time.monotonic() - last_wake_up
-                        if sec_since_last_wake_up < WAKE_WORD_COOLDOWN:
-                            _LOGGER.debug(
-                                "Speech-to-text cancelled to avoid duplicate wake-up for %s",
-                                self.wake_word_phrase,
-                            )
-                            raise DuplicateWakeUpDetectedError(self.wake_word_phrase)
-
-                    # Record last wake up time to block duplicate detections
-                    self.run.hass.data[DATA_LAST_WAKE_UP][self.wake_word_phrase] = (
-                        time.monotonic()
-                    )
-
-                stt_input_stream = stt_processed_stream
-
-                if stt_audio_buffer:
-                    # Send audio in the buffer first to speech-to-text, then move on to stt_stream.
-                    # This is basically an async itertools.chain.
-                    async def buffer_then_audio_stream() -> (
-                        AsyncGenerator[EnhancedAudioChunk]
-                    ):
-                        # Buffered audio
-                        for chunk in stt_audio_buffer:
-                            yield chunk
-
-                        # Streamed audio
-                        assert stt_processed_stream is not None
-                        async for chunk in stt_processed_stream:
-                            yield chunk
-
-                    stt_input_stream = buffer_then_audio_stream()
-
-                intent_input = await self.run.speech_to_text(
-                    self.stt_metadata,
-                    stt_input_stream,
-                )
-                current_stage = PipelineStage.INTENT
+            intent_input = await self.speech_to_text(
+                current_stage, stt_processed_stream, stt_audio_buffer
+            )
 
             if self.run.end_stage != PipelineStage.STT:
                 tts_input = self.tts_input
