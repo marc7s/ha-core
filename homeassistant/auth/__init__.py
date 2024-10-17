@@ -447,46 +447,69 @@ class AuthManager:
             if await module.async_is_user_setup(user.id):
                 modules[module_id] = module.name
         return modules
-    
+
     def is_user_active(self, user: models.User) -> None:
+        """List enabled mfa modules for user."""
         if not user.is_active:
             raise ValueError("User is not active")
 
-    def is_user_system_generated(self, user: models.User, client_id: str | None) -> None:
+    def is_user_system_generated(
+        self, user: models.User, client_id: str | None
+    ) -> None:
+        """List enabled mfa modules for user."""
         if user.system_generated and client_id is not None:
             raise ValueError(
                 "System generated users cannot have refresh tokens connected "
                 "to a client."
             )
-        
+
     def validate_user(self, user: models.User, client_id: str | None) -> None:
+        """List enabled mfa modules for user."""
         self.is_user_active(user)
         self.is_user_system_generated(user, client_id)
 
-    def set_token_type_if_none(self, user: models.User, token_type: str | None):
+    def set_token_type_if_none(self, user: models.User, token_type: str | None) -> str:
+        """List enabled mfa modules for user."""
         if token_type is None:
             if user.system_generated:
                 return models.TOKEN_TYPE_SYSTEM
             return models.TOKEN_TYPE_NORMAL
+        return token_type
 
-    def get_expire_at(self, token_type: str):
+    def get_expire_at(self, token_type: str) -> float | None:
+        """List enabled mfa modules for user."""
         if token_type is models.TOKEN_TYPE_NORMAL:
             return time.time() + REFRESH_TOKEN_EXPIRATION
         return None
-    
-    def check_system_generated_user(self, user: models.User, token_type: str):
-        if user.system_generated != (token_type == models.TOKEN_TYPE_SYSTEM):
-            raise ValueError("System generated users can only have system type refresh tokens")
 
-    def check_client_id_for_normal_token(self, token_type: str, client_id: str | None):
+    def check_system_generated_user(self, user: models.User, token_type: str) -> None:
+        """List enabled mfa modules for user."""
+        if user.system_generated != (token_type == models.TOKEN_TYPE_SYSTEM):
+            raise ValueError(
+                "System generated users can only have system type refresh tokens"
+            )
+
+    def check_client_id_for_normal_token(
+        self, token_type: str, client_id: str | None
+    ) -> None:
+        """List enabled mfa modules for user."""
         if token_type == models.TOKEN_TYPE_NORMAL and client_id is None:
             raise ValueError("Client is required to generate a refresh token.")
 
-    def check_client_name_for_long_lived_token(self, token_type: str, client_name: str | None):
-        if token_type == models.TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN and client_name is None:
+    def check_client_name_for_long_lived_token(
+        self, token_type: str, client_name: str | None
+    ) -> None:
+        """List enabled mfa modules for user."""
+        if (
+            token_type == models.TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN
+            and client_name is None
+        ):
             raise ValueError("Client_name is required for long-lived access token")
 
-    def check_existing_long_lived_token(self, user: models.User, token_type: str, client_name: str | None):
+    def check_existing_long_lived_token(
+        self, user: models.User, token_type: str, client_name: str | None
+    ) -> None:
+        """List enabled mfa modules for user."""
         if token_type == models.TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN:
             for token in user.refresh_tokens.values():
                 if (
@@ -495,14 +518,18 @@ class AuthManager:
                 ):
                     raise ValueError(f"{client_name} already exists")
 
-
-    def validate_token(self, user: models.User, token_type: str, client_id: str | None, client_name: str | None):
+    def validate_token(
+        self,
+        user: models.User,
+        token_type: str,
+        client_id: str | None,
+        client_name: str | None,
+    ) -> None:
+        """List enabled mfa modules for user."""
         self.check_system_generated_user(user, token_type)
         self.check_client_id_for_normal_token(token_type, client_id)
         self.check_client_name_for_long_lived_token(token_type, client_name)
         self.check_existing_long_lived_token(user, token_type, client_name)
-
-
 
     async def async_create_refresh_token(
         self,
@@ -522,7 +549,6 @@ class AuthManager:
         expire_at = self.get_expire_at(token_type)
 
         self.validate_token(user, token_type, client_id, client_name)
-        
 
         return await self._store.async_create_refresh_token(
             user,

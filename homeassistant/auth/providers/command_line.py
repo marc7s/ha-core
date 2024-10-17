@@ -62,8 +62,9 @@ class CommandLineAuthProvider(AuthProvider):
     async def async_login_flow(self, context: dict[str, Any] | None) -> LoginFlow:
         """Return a flow to login."""
         return CommandLineLoginFlow(self)
-    
+
     async def async_authenticate(self, env: dict[str, str]) -> bytes:
+        """Authenticate user."""
         try:
             process = await asyncio.create_subprocess_exec(
                 self.config[CONF_COMMAND],
@@ -81,14 +82,15 @@ class CommandLineAuthProvider(AuthProvider):
                     process.returncode,
                 )
                 raise InvalidAuthError
-            
-            return stdout
+
+            return stdout  # noqa: TRY300
         except OSError as err:
             # happens when command doesn't exist or permission is denied
             _LOGGER.error("Error while authenticating %r: %s", env["username"], err)
             raise InvalidAuthError from err
 
     def set_metadata(self, stdout: bytes, env: dict[str, str]) -> None:
+        """Set metadata for user."""
         if self.config[CONF_META]:
             meta: dict[str, str] = {}
             for _line in stdout.splitlines():
@@ -110,10 +112,30 @@ class CommandLineAuthProvider(AuthProvider):
         """Validate a username and password."""
         env = {"username": username, "password": password}
         # Login
-        stdout = self.authenticate(env)
+        try:
+            process = await asyncio.create_subprocess_exec(
+                self.config[CONF_COMMAND],
+                *self.config[CONF_ARGS],
+                env=env,
+                stdout=asyncio.subprocess.PIPE if self.config[CONF_META] else None,
+                close_fds=False,  # required for posix_spawn
+            )
+            stdout, _ = await process.communicate()
+        except OSError as err:
+            # happens when command doesn't exist or permission is denied
+            _LOGGER.error("Error while authenticating %r: %s", username, err)
+            raise InvalidAuthError from err
+
+        if process.returncode != 0:
+            _LOGGER.error(
+                "User %r failed to authenticate, command exited with code %d",
+                username,
+                process.returncode,
+            )
+            raise InvalidAuthError
+
         # Set metadata of user
         self.set_metadata(stdout, env)
-
 
     async def async_get_or_create_credentials(
         self, flow_result: Mapping[str, str]
