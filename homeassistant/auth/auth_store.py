@@ -558,11 +558,7 @@ class AuthStore:
                 )
                 continue
 
-            if (token_type := rt_dict.get("token_type")) is None:
-                if rt_dict["client_id"] is None:
-                    token_type = models.TOKEN_TYPE_SYSTEM
-                else:
-                    token_type = models.TOKEN_TYPE_NORMAL
+            token_type = self.set_token_type_if_none(rt_dict)
 
             # old refresh_token don't have last_used_at (pre-0.78)
             if last_used_at_str := rt_dict.get("last_used_at"):
