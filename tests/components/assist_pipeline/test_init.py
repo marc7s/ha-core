@@ -63,14 +63,13 @@ async def test_pipeline_from_audio_stream_auto(
         yield make_10ms_chunk(b"part2")
         yield b""
 
-    pipeline_run = assist_pipeline.create_pipeline_run_context(
-        hass,
-        context=Context(),
-        event_callback=events.append,
-        audio_settings=assist_pipeline.AudioSettings(is_vad_enabled=False),
-    )
     await assist_pipeline.async_pipeline_from_audio_stream(
-        pipeline_run,
+        assist_pipeline.create_pipeline_run_context(
+            hass,
+            context=Context(),
+            event_callback=events.append,
+            audio_settings=assist_pipeline.AudioSettings(is_vad_enabled=False),
+        ),
         stt_metadata=stt.SpeechMetadata(
             language="",
             format=stt.AudioFormats.WAV,
@@ -129,16 +128,15 @@ async def test_pipeline_from_audio_stream_legacy(
     assert msg["success"]
     pipeline_id = msg["result"]["id"]
 
-    pipeline_run = assist_pipeline.create_pipeline_run_context(
-        hass,
-        context=Context(),
-        pipeline_id=pipeline_id,
-        event_callback=events.append,
-        audio_settings=assist_pipeline.AudioSettings(is_vad_enabled=False),
-    )
     # Use the created pipeline
     await assist_pipeline.async_pipeline_from_audio_stream(
-        pipeline_run,
+        assist_pipeline.create_pipeline_run_context(
+            hass,
+            context=Context(),
+            pipeline_id=pipeline_id,
+            event_callback=events.append,
+            audio_settings=assist_pipeline.AudioSettings(is_vad_enabled=False),
+        ),
         stt_metadata=stt.SpeechMetadata(
             language="en-UK",
             format=stt.AudioFormats.WAV,
@@ -197,16 +195,15 @@ async def test_pipeline_from_audio_stream_entity(
     assert msg["success"]
     pipeline_id = msg["result"]["id"]
 
-    pipeline_run = assist_pipeline.create_pipeline_run_context(
-        hass,
-        context=Context(),
-        pipeline_id=pipeline_id,
-        event_callback=events.append,
-        audio_settings=assist_pipeline.AudioSettings(is_vad_enabled=False),
-    )
     # Use the created pipeline
     await assist_pipeline.async_pipeline_from_audio_stream(
-        pipeline_run,
+        assist_pipeline.create_pipeline_run_context(
+            hass,
+            context=Context(),
+            pipeline_id=pipeline_id,
+            event_callback=events.append,
+            audio_settings=assist_pipeline.AudioSettings(is_vad_enabled=False),
+        ),
         stt_metadata=stt.SpeechMetadata(
             language="en-UK",
             format=stt.AudioFormats.WAV,
@@ -265,17 +262,16 @@ async def test_pipeline_from_audio_stream_no_stt(
     assert msg["success"]
     pipeline_id = msg["result"]["id"]
 
-    pipeline_run = assist_pipeline.create_pipeline_run_context(
-        hass,
-        context=Context(),
-        pipeline_id=pipeline_id,
-        event_callback=events.append,
-        audio_settings=assist_pipeline.AudioSettings(is_vad_enabled=False),
-    )
     # Try to use the created pipeline
     with pytest.raises(assist_pipeline.pipeline.PipelineRunValidationError):
         await assist_pipeline.async_pipeline_from_audio_stream(
-            pipeline_run,
+            assist_pipeline.create_pipeline_run_context(
+                hass,
+                context=Context(),
+                pipeline_id=pipeline_id,
+                event_callback=events.append,
+                audio_settings=assist_pipeline.AudioSettings(is_vad_enabled=False),
+            ),
             stt_metadata=stt.SpeechMetadata(
                 language="en-UK",
                 format=stt.AudioFormats.WAV,
@@ -308,16 +304,15 @@ async def test_pipeline_from_audio_stream_unknown_pipeline(
         yield make_10ms_chunk(b"part2")
         yield b""
 
-    pipeline_run = assist_pipeline.create_pipeline_run_context(
-        hass,
-        context=Context(),
-        pipeline_id="blah",
-        event_callback=events.append,
-    )
     # Try to use the created pipeline
     with pytest.raises(assist_pipeline.PipelineNotFound):
         await assist_pipeline.async_pipeline_from_audio_stream(
-            pipeline_run,
+            assist_pipeline.create_pipeline_run_context(
+                hass,
+                context=Context(),
+                pipeline_id="blah",
+                event_callback=events.append,
+            ),
             stt_metadata=stt.SpeechMetadata(
                 language="en-UK",
                 format=stt.AudioFormats.WAV,
@@ -370,18 +365,17 @@ async def test_pipeline_from_audio_stream_wake_word(
 
         yield b""
 
-    pipeline_run = assist_pipeline.create_pipeline_run_context(
-        hass,
-        context=Context(),
-        start_stage=assist_pipeline.PipelineStage.WAKE_WORD,
-        event_callback=events.append,
-        wake_word_settings=assist_pipeline.WakeWordSettings(
-            audio_seconds_to_buffer=1.5
-        ),
-        audio_settings=assist_pipeline.AudioSettings(is_vad_enabled=False),
-    )
     await assist_pipeline.async_pipeline_from_audio_stream(
-        pipeline_run,
+        assist_pipeline.create_pipeline_run_context(
+            hass,
+            context=Context(),
+            start_stage=assist_pipeline.PipelineStage.WAKE_WORD,
+            event_callback=events.append,
+            wake_word_settings=assist_pipeline.WakeWordSettings(
+                audio_seconds_to_buffer=1.5
+            ),
+            audio_settings=assist_pipeline.AudioSettings(is_vad_enabled=False),
+        ),
         stt_metadata=stt.SpeechMetadata(
             language="",
             format=stt.AudioFormats.WAV,
@@ -438,17 +432,16 @@ async def test_pipeline_save_audio(
             yield make_10ms_chunk(b"part2")
             yield b""
 
-        pipeline_run = assist_pipeline.create_pipeline_run_context(
-            hass,
-            context=Context(),
-            pipeline_id=pipeline.id,
-            start_stage=assist_pipeline.PipelineStage.WAKE_WORD,
-            end_stage=assist_pipeline.PipelineStage.STT,
-            event_callback=events.append,
-            audio_settings=assist_pipeline.AudioSettings(is_vad_enabled=False),
-        )
         await assist_pipeline.async_pipeline_from_audio_stream(
-            pipeline_run,
+            assist_pipeline.create_pipeline_run_context(
+                hass,
+                context=Context(),
+                pipeline_id=pipeline.id,
+                start_stage=assist_pipeline.PipelineStage.WAKE_WORD,
+                end_stage=assist_pipeline.PipelineStage.STT,
+                event_callback=events.append,
+                audio_settings=assist_pipeline.AudioSettings(is_vad_enabled=False),
+            ),
             stt_metadata=stt.SpeechMetadata(
                 language="",
                 format=stt.AudioFormats.WAV,
@@ -529,15 +522,14 @@ async def test_pipeline_saved_audio_with_device_id(
                 code="timeout", message="timeout"
             ),
         ):
-            pipeline_run = assist_pipeline.create_pipeline_run_context(
-                hass,
-                context=Context(),
-                start_stage=assist_pipeline.PipelineStage.WAKE_WORD,
-                end_stage=assist_pipeline.PipelineStage.STT,
-                event_callback=event_callback,
-            )
             await assist_pipeline.async_pipeline_from_audio_stream(
-                pipeline_run,
+                assist_pipeline.create_pipeline_run_context(
+                    hass,
+                    context=Context(),
+                    start_stage=assist_pipeline.PipelineStage.WAKE_WORD,
+                    end_stage=assist_pipeline.PipelineStage.STT,
+                    event_callback=event_callback,
+                ),
                 stt_metadata=stt.SpeechMetadata(
                     language="",
                     format=stt.AudioFormats.WAV,
@@ -580,17 +572,16 @@ async def test_pipeline_saved_audio_write_error(
         async def audio_data():
             yield b"not used"
 
-        pipeline_run = assist_pipeline.create_pipeline_run_context(
-            hass,
-            context=Context(),
-            start_stage=assist_pipeline.PipelineStage.WAKE_WORD,
-            end_stage=assist_pipeline.PipelineStage.STT,
-            event_callback=event_callback,
-        )
         # Force a timeout during wake word detection
         with patch("wave.Wave_write.writeframes", raises=RuntimeError()):
             await assist_pipeline.async_pipeline_from_audio_stream(
-                pipeline_run,
+                assist_pipeline.create_pipeline_run_context(
+                    hass,
+                    context=Context(),
+                    start_stage=assist_pipeline.PipelineStage.WAKE_WORD,
+                    end_stage=assist_pipeline.PipelineStage.STT,
+                    event_callback=event_callback,
+                ),
                 stt_metadata=stt.SpeechMetadata(
                     language="",
                     format=stt.AudioFormats.WAV,
@@ -648,15 +639,14 @@ async def test_pipeline_saved_audio_empty_queue(
             "homeassistant.components.assist_pipeline.pipeline._pipeline_debug_recording_thread_proc",
             proc_wrapper,
         ):
-            pipeline_run = assist_pipeline.create_pipeline_run_context(
-                hass,
-                context=Context(),
-                start_stage=assist_pipeline.PipelineStage.WAKE_WORD,
-                end_stage=assist_pipeline.PipelineStage.STT,
-                event_callback=event_callback,
-            )
             await assist_pipeline.async_pipeline_from_audio_stream(
-                pipeline_run,
+                assist_pipeline.create_pipeline_run_context(
+                    hass,
+                    context=Context(),
+                    start_stage=assist_pipeline.PipelineStage.WAKE_WORD,
+                    end_stage=assist_pipeline.PipelineStage.STT,
+                    event_callback=event_callback,
+                ),
                 stt_metadata=stt.SpeechMetadata(
                     language="",
                     format=stt.AudioFormats.WAV,

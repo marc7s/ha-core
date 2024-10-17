@@ -387,25 +387,26 @@ class WyomingSatellite:
 
         self._is_pipeline_running = True
         self._pipeline_ended_event.clear()
-        pipeline_run = assist_pipeline.create_pipeline_run_context(
-            self.hass,
-            context=Context(),
-            pipeline_id=pipeline_id,
-            start_stage=start_stage,
-            end_stage=end_stage,
-            event_callback=self._event_callback,
-            tts_audio_output="wav",
-            audio_settings=assist_pipeline.AudioSettings(
-                noise_suppression_level=self.device.noise_suppression_level,
-                auto_gain_dbfs=self.device.auto_gain,
-                volume_multiplier=self.device.volume_multiplier,
-                silence_seconds=VadSensitivity.to_seconds(self.device.vad_sensitivity),
-            ),
-        )
         self.config_entry.async_create_background_task(
             self.hass,
             assist_pipeline.async_pipeline_from_audio_stream(
-                pipeline_run,
+                assist_pipeline.create_pipeline_run_context(
+                    self.hass,
+                    context=Context(),
+                    pipeline_id=pipeline_id,
+                    start_stage=start_stage,
+                    end_stage=end_stage,
+                    event_callback=self._event_callback,
+                    tts_audio_output="wav",
+                    audio_settings=assist_pipeline.AudioSettings(
+                        noise_suppression_level=self.device.noise_suppression_level,
+                        auto_gain_dbfs=self.device.auto_gain,
+                        volume_multiplier=self.device.volume_multiplier,
+                        silence_seconds=VadSensitivity.to_seconds(
+                            self.device.vad_sensitivity
+                        ),
+                    ),
+                ),
                 stt_metadata=stt.SpeechMetadata(
                     language=pipeline.language,
                     format=stt.AudioFormats.WAV,

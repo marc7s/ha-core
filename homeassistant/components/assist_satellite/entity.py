@@ -313,22 +313,21 @@ class AssistSatelliteEntity(entity.Entity):
         self._run_has_tts = False
 
         assert self.platform.config_entry is not None
-        pipeline_run = create_pipeline_run_context(
-            self.hass,
-            context=self._context,
-            pipeline_id=self._resolve_pipeline(),
-            start_stage=start_stage,
-            end_stage=end_stage,
-            event_callback=self._internal_on_pipeline_event,
-            tts_audio_output=self.tts_options,
-            audio_settings=AudioSettings(
-                silence_seconds=self._resolve_vad_sensitivity()
-            ),
-        )
         self._pipeline_task = self.platform.config_entry.async_create_background_task(
             self.hass,
             async_pipeline_from_audio_stream(
-                pipeline_run,
+                create_pipeline_run_context(
+                    self.hass,
+                    context=self._context,
+                    pipeline_id=self._resolve_pipeline(),
+                    start_stage=start_stage,
+                    end_stage=end_stage,
+                    event_callback=self._internal_on_pipeline_event,
+                    tts_audio_output=self.tts_options,
+                    audio_settings=AudioSettings(
+                        silence_seconds=self._resolve_vad_sensitivity()
+                    ),
+                ),
                 stt_metadata=stt.SpeechMetadata(
                     language="",  # set in async_pipeline_from_audio_stream
                     format=stt.AudioFormats.WAV,
