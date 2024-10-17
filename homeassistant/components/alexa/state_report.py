@@ -368,14 +368,24 @@ async def async_enable_proactive_mode(
         hass, DOMAIN, ProactiveHelpers.extra_significant_check
     )
 
+    @callback
+    async def _async_entity_state_listener(
+        eventData: Event[EventStateChangedData],
+    ) -> None:
+        return await ProactiveHelpers.async_entity_state_listener(
+            hass, smart_home_config, checker, eventData
+        )
+
+    @callback
+    def _async_entity_event_filter(eventData: EventStateChangedData) -> bool:
+        return ProactiveHelpers.async_entity_state_filter(
+            hass, smart_home_config, eventData
+        )
+
     return hass.bus.async_listen(
         EVENT_STATE_CHANGED,
-        lambda event: ProactiveHelpers.async_entity_state_listener(
-            hass, smart_home_config, checker, event
-        ),
-        event_filter=lambda event_filter: ProactiveHelpers.async_entity_state_filter(
-            hass, smart_home_config, event_filter
-        ),
+        listener=_async_entity_state_listener,
+        event_filter=_async_entity_event_filter,
     )
 
 
