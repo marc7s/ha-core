@@ -1463,7 +1463,7 @@ class AlexaModeController(AlexaCapability):
 
         # Humidifier mode
         if self.instance == f"{humidifier.DOMAIN}.{humidifier.ATTR_MODE}":
-            return self.get_humidifier_mode
+            return self.get_humidifier_mode()
 
         # Remote Activity
         if self.instance == f"{remote.DOMAIN}.{remote.ATTR_ACTIVITY}":
