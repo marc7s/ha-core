@@ -109,6 +109,7 @@ async def async_setup_entry(
     # Add entities for tracked trackables
     for trackable in status.trackables.values():
         entities.extend(get_trackable_entities(coordinator, trackable))
+
     async_add_entities(entities)
 
 
