@@ -45,6 +45,7 @@ TRACKABLE_ID_SENSOR_FORMAT = DOMAIN + ".{}_{}"
 
 # Section IDs for the config flow
 # Note that changing these will require updating the `strings.json` paths, and recompiling the translations
+CONFIG_FLOW_TRACKERS_SECTION_ID = "tracker_entities"
 CONFIG_FLOW_GEOCACHES_SECTION_ID = "tracked_geocache_ids"
 CONFIG_FLOW_TRACKABLES_SECTION_ID = "tracked_trackable_ids"
 CONFIG_FLOW_NEARBY_SETTINGS_SECTION_ID = "nearby_settings"
@@ -52,9 +53,12 @@ CONFIG_FLOW_NEARBY_SETTINGS_SECTION_ID = "nearby_settings"
 CACHES_SINGLE_TITLE = "tracked_cache_ref_code"
 TRACKABLES_SINGLE_TITLE = "tracked_trackable_ref_code"
 
+TRACKERS_SELECTION_TITLE = "tracker_entities_selection"
+TRACKERS_RADIUS_TITLE = "tracker_entities_radius"
+
 NEARBY_CACHES_COUNT_TITLE = "nearby_caches_max_count"
 NEARBY_CACHES_RADIUS_TITLE = "nearby_caches_radius"
 
 # TODO: Remove this temporary variable, only used during development | pylint: disable=fixme
 # Enabling this will skip the entire tracked objects configuration process and use predefined codes
-USE_TEST_CONFIG: bool = True
+USE_TEST_CONFIG: bool = False

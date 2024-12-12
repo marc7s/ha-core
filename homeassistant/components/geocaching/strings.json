@@ -12,6 +12,14 @@
         "title": "Configure tracked objects",
         "description": "The integration can track caches and trackables, for which entities will be generated",
         "sections": {
+          "tracker_entities": {
+            "name": "Tracker entities",
+            "description": "Entities to use for nearby cache notifications. Do not select any entities to disable notifications",
+            "data": {
+              "tracker_entities_selection": "Entities that trigger notifications",
+              "tracker_entities_radius": "Trigger radius for notifications"
+            }
+          },
           "nearby_settings": {
             "name": "Nearby Geocaches Settings",
             "description": "Configure nearby geocaches settings. Set the max count to 0 to disable generating entities for nearby geocaches",

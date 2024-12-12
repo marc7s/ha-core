@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from geocachingapi.exceptions import GeocachingApiError, GeocachingInvalidSettingsError
 from geocachingapi.geocachingapi import GeocachingApi
 from geocachingapi.models import (
@@ -11,6 +13,7 @@ from geocachingapi.models import (
     NearbyCachesSetting,
 )
 
+import homeassistant.components.persistent_notification as pn
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -25,6 +28,8 @@ from .const import (
     LOGGER,
     NEARBY_CACHES_COUNT_TITLE,
     NEARBY_CACHES_RADIUS_TITLE,
+    TRACKERS_RADIUS_TITLE,
+    TRACKERS_SELECTION_TITLE,
     UPDATE_INTERVAL,
     USE_TEST_CONFIG,
 )
@@ -49,6 +54,9 @@ class GeocachingDataUpdateCoordinator(DataUpdateCoordinator[GeocachingStatus]):
             return str(token)
 
         client_session = async_get_clientsession(hass)
+
+        self.tracker_entity_ids: list[str] = self.entry.data[TRACKERS_SELECTION_TITLE]
+        self.tracker_radius_km: float = self.entry.data[TRACKERS_RADIUS_TITLE]
 
         settings: GeocachingSettings = GeocachingSettings()
         settings.set_nearby_caches_setting(
@@ -109,6 +117,27 @@ class GeocachingDataUpdateCoordinator(DataUpdateCoordinator[GeocachingStatus]):
             if not self.verified:
                 await self.geocaching.verify_settings()
                 self.verified = True
+
+            # Nearby caches alert
+            for tracker_entity_id in self.tracker_entity_ids:
+                state = self.hass.states.get(tracker_entity_id)
+                if state is None:
+                    continue
+                lat = state.attributes["latitude"]
+                lon = state.attributes["longitude"]
+                nearby_caches = await self.geocaching.get_nearby_caches(
+                    GeocachingCoordinate(data={"latitude": lat, "longitude": lon}),
+                    self.tracker_radius_km,
+                    50,
+                )
+
+                cache_notification_count: int = 5
+                pn.async_create(
+                    self.hass,
+                    f"{state.name} is nearby {len(nearby_caches)} caches: {', '.join([f'[{c.reference_code}]({c.url})' for c in nearby_caches[:cache_notification_count] if c.reference_code is not None])}{'...' if len(nearby_caches) > cache_notification_count else '...'}",
+                    "Geocaching - Caches nearby alert",
+                    f"Geocaching-{datetime.now().isoformat()}",
+                )
             return await self.geocaching.update()
         except GeocachingInvalidSettingsError as error:
             raise UpdateFailed(error) from error

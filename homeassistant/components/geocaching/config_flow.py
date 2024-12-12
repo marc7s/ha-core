@@ -14,6 +14,7 @@ from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.config_entry_oauth2_flow import AbstractOAuth2FlowHandler
 from homeassistant.helpers.selector import (
+    EntitySelector,
     NumberSelector,
     NumberSelectorMode,
     TextSelector,
@@ -25,11 +26,14 @@ from .const import (
     CONFIG_FLOW_GEOCACHES_SECTION_ID,
     CONFIG_FLOW_NEARBY_SETTINGS_SECTION_ID,
     CONFIG_FLOW_TRACKABLES_SECTION_ID,
+    CONFIG_FLOW_TRACKERS_SECTION_ID,
     DOMAIN,
     ENVIRONMENT,
     NEARBY_CACHES_COUNT_TITLE,
     NEARBY_CACHES_RADIUS_TITLE,
     TRACKABLES_SINGLE_TITLE,
+    TRACKERS_RADIUS_TITLE,
+    TRACKERS_SELECTION_TITLE,
     USE_TEST_CONFIG,
 )
 
@@ -114,6 +118,31 @@ class GeocachingFlowHandler(AbstractOAuth2FlowHandler, domain=DOMAIN):
                 data_schema=vol.Schema(
                     {
                         vol.Required(
+                            CONFIG_FLOW_TRACKERS_SECTION_ID
+                        ): data_entry_flow.section(
+                            vol.Schema(
+                                {
+                                    vol.Required(
+                                        TRACKERS_SELECTION_TITLE
+                                    ): EntitySelector(
+                                        {
+                                            "domain": "zone",
+                                            "multiple": True,
+                                        }  # TODO: This should be "device_tracker" instead of "zone" | pylint: disable=fixme
+                                    ),
+                                    vol.Required(TRACKERS_RADIUS_TITLE): NumberSelector(
+                                        {
+                                            "min": 0.1,
+                                            "step": 0.001,
+                                            "unit_of_measurement": "km",
+                                            "mode": NumberSelectorMode.BOX,
+                                        }
+                                    ),
+                                }
+                            ),
+                            {"collapsed": False},
+                        ),
+                        vol.Required(
                             CONFIG_FLOW_NEARBY_SETTINGS_SECTION_ID
                         ): data_entry_flow.section(
                             vol.Schema(
@@ -170,6 +199,16 @@ class GeocachingFlowHandler(AbstractOAuth2FlowHandler, domain=DOMAIN):
                     return default
                 value = value[key]
             return value
+
+        # Store the provided tracker entities
+        self.data[TRACKERS_SELECTION_TITLE] = get_or_default(
+            [CONFIG_FLOW_TRACKERS_SECTION_ID, TRACKERS_SELECTION_TITLE], []
+        )
+
+        # Store the provided tracker radius
+        self.data[TRACKERS_RADIUS_TITLE] = get_or_default(
+            [CONFIG_FLOW_TRACKERS_SECTION_ID, TRACKERS_RADIUS_TITLE], 1
+        )
 
         # Store the provided nearby caches count
         self.data[NEARBY_CACHES_COUNT_TITLE] = get_or_default(
